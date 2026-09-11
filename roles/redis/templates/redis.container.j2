@@ -1,0 +1,21 @@
+[Unit]
+Description=InfraBox Redis
+After=openbao-agent.service
+[Container]
+Image={{ redis_image }}
+ContainerName=redis
+User={{ redis_uid }}:{{ redis_gid }}
+DropCapability=all
+NoNewPrivileges=true
+Network=infrabox.network
+NetworkAlias=redis.{{ infrabox_internal_domain }}
+Volume={{ infrabox_storage_root }}/redis:/data:Z
+Volume={{ infrabox_config_root }}/redis/redis.conf:/etc/redis/redis.conf:ro,Z
+Volume={{ infrabox_pki_root }}/redis:/run/infrabox-pki:ro,Z
+Volume={{ infrabox_root_ca_path }}:/run/infrabox-ca/root-ca.crt:ro,z
+Exec=redis-server /etc/redis/redis.conf
+[Service]
+Restart=on-failure
+TimeoutStartSec=120
+[Install]
+WantedBy=multi-user.target

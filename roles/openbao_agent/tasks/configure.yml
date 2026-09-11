@@ -1,0 +1,69 @@
+---
+- name: Create private Agent configuration directories
+  ansible.builtin.file:
+    path: '{{ item }}'
+    state: directory
+    mode: '0700'
+  loop:
+    - /etc/infrabox/openbao-agent
+    - /etc/infrabox/openbao-agent/auth
+    - /etc/infrabox/openbao-agent/templates
+    - /etc/infrabox/openbao-agent/rendered
+- name: Install credential and certificate helpers
+  ansible.builtin.copy:
+    src: '{{ item }}'
+    dest: '/etc/infrabox/openbao-agent/{{ item }}'
+    mode: '0700'
+  loop: [credentials.py, render.py, rotate-secret-id.py]
+- name: Define certificate access contracts
+  ansible.builtin.copy:
+    content: '{{ {"root": infrabox_pki_root, "certificates": openbao_agent_certificates} | to_nice_json }}'
+    dest: /etc/infrabox/openbao-agent/certificates.json
+    mode: '0600'
+  notify: Restart OpenBao Agent
+- name: Acquire or repair Agent AppRole credentials
+  ansible.builtin.command:
+    argv: [python3, /etc/infrabox/openbao-agent/credentials.py]
+    stdin: '{{ openbao_agent_auth_parameters | to_json }}'
+  vars:
+    openbao_agent_auth_parameters:
+      token: '{{ (lookup("ansible.builtin.file", openbao_agent_controller_dir ~ "/openbao-init.json") | from_json).root_token }}'
+      socket: '{{ openbao_agent_local_socket }}'
+  register: openbao_agent_auth_result
+  changed_when: openbao_agent_auth_result.rc == 0 and (openbao_agent_auth_result.stdout | from_json).changed
+  no_log: true
+  notify: Restart OpenBao Agent
+- name: Render leased certificate templates
+  ansible.builtin.template:
+    src: certificate.ctmpl.j2
+    dest: '/etc/infrabox/openbao-agent/templates/{{ item.name }}.ctmpl'
+    mode: '0600'
+  loop: '{{ openbao_agent_certificates }}'
+  loop_control:
+    label: '{{ item.name }}'
+  notify: Restart OpenBao Agent
+- name: Render Agent configuration
+  ansible.builtin.template:
+    src: agent.hcl.j2
+    dest: /etc/infrabox/openbao-agent/agent.hcl
+    mode: '0600'
+  notify: Restart OpenBao Agent
+- name: Install Agent service
+  ansible.builtin.copy:
+    src: openbao-agent.service
+    dest: /etc/systemd/system/openbao-agent.service
+    mode: '0644'
+  register: openbao_agent_unit
+  notify: Restart OpenBao Agent
+- name: Configure Agent credential rotation endpoint
+  ansible.builtin.copy:
+    dest: /etc/infrabox/openbao-agent/rotation.json
+    mode: '0600'
+    content: '{{ {"address": openbao_agent_openbao_address, "ca_file": infrabox_root_ca_path, "rotate_after_seconds": openbao_agent_secret_id_rotate_after_seconds} | to_nice_json }}'
+- name: Install credential rotation units
+  ansible.builtin.copy:
+    src: '{{ item }}'
+    dest: '/etc/systemd/system/{{ item }}'
+    mode: '0644'
+  loop: [openbao-agent-secret-id.service, openbao-agent-secret-id.timer]
+  register: openbao_agent_rotation_units

@@ -1,0 +1,15 @@
+---
+- name: Verify runner readiness against Gitea
+  ansible.builtin.command: podman exec gitea-runner wget -q -O - http://127.0.0.1:9101/readyz
+  changed_when: false
+  register: gitea_runner_ready
+  retries: 20
+  delay: 3
+  until: gitea_runner_ready.rc == 0
+- name: Inspect runner host UID mapping
+  ansible.builtin.command: podman exec gitea-runner cat /proc/self/uid_map
+  changed_when: false
+  register: gitea_runner_uid_map
+- name: Require mapped container root
+  ansible.builtin.assert:
+    that: gitea_runner_uid_map.stdout.split()[1] | int != 0

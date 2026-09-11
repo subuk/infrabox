@@ -1,0 +1,2 @@
+---
+cacerts_root_ca_source: '{{ infrabox_root_ca_path }}'

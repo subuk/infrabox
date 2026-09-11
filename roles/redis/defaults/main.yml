@@ -1,0 +1,4 @@
+---
+redis_image: docker.io/library/redis:8.8.2-trixie
+redis_uid: 999
+redis_gid: 999

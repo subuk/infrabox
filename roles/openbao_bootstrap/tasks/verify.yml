@@ -1,0 +1,25 @@
+---
+- name: Verify initialized and unsealed PKCS11 server
+  ansible.builtin.uri:
+    url: http://localhost/v1/sys/seal-status
+    unix_socket: '{{ openbao_bootstrap_local_socket }}'
+  register: openbao_bootstrap_seal
+- name: Assert initialized PKCS11 state
+  ansible.builtin.assert:
+    that:
+      - openbao_bootstrap_seal.json.initialized
+      - not openbao_bootstrap_seal.json.sealed
+      - openbao_bootstrap_seal.json.type == 'pkcs11'
+- name: Read public CA certificates
+  ansible.builtin.uri:
+    url: 'http://localhost/v1/{{ item }}/ca/pem'
+    unix_socket: '{{ openbao_bootstrap_local_socket }}'
+    return_content: true
+  loop: [pki-root, pki-server, pki-user]
+  register: openbao_bootstrap_ca_checks
+- name: Require CA certificates
+  ansible.builtin.assert:
+    that: "'BEGIN CERTIFICATE' in item.content"
+  loop: '{{ openbao_bootstrap_ca_checks.results }}'
+  loop_control:
+    label: '{{ item.item }}'

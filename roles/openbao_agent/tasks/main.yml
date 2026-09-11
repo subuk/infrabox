@@ -1,0 +1,13 @@
+---
+- name: Install Agent
+  ansible.builtin.import_tasks: install.yml
+  tags: [install]
+- name: Configure Agent
+  ansible.builtin.import_tasks: configure.yml
+  tags: [configure]
+- name: Start Agent
+  ansible.builtin.import_tasks: service.yml
+  tags: [service]
+- name: Verify Agent certificates
+  ansible.builtin.import_tasks: verify.yml
+  tags: [verify]

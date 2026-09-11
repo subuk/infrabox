@@ -1,0 +1,9 @@
+---
+- name: Configure InfraBox platform
+  hosts: infrabox
+  become: true
+  roles:
+    - role: podman
+      tags: [podman]
+    - role: tpm2_pkcs11
+      tags: [tpm2_pkcs11]

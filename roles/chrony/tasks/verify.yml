@@ -1,0 +1,4 @@
+---
+- name: Wait for clock synchronization
+  ansible.builtin.command: chronyc waitsync 30 0.1
+  changed_when: false

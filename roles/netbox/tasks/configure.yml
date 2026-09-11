@@ -1,0 +1,34 @@
+---
+- name: Create NetBox configuration directory
+  ansible.builtin.file:
+    path: '{{ infrabox_config_root }}/netbox'
+    state: directory
+    mode: '0755'
+- name: Create persistent NetBox directories
+  ansible.builtin.file:
+    path: '{{ infrabox_storage_root }}/netbox/{{ item }}'
+    state: directory
+    owner: '{{ netbox_uid }}'
+    group: '0'
+    mode: '0770'
+  loop: [media, reports, scripts]
+- name: Render NetBox required settings
+  ansible.builtin.template:
+    src: configuration.py.j2
+    dest: '{{ infrabox_config_root }}/netbox/configuration.py'
+    mode: '0644'
+  notify: Restart netbox
+- name: Render protected NetBox environment
+  ansible.builtin.template:
+    src: netbox.env.j2
+    dest: '{{ infrabox_config_root }}/netbox/netbox.env'
+    mode: '0600'
+  no_log: true
+  notify: Restart netbox
+- name: Define NetBox web Quadlet
+  ansible.builtin.include_role:
+    name: quadlet
+    tasks_from: configure
+  vars:
+    quadlet_name: netbox
+    quadlet_definition: '{{ lookup("ansible.builtin.template", "netbox.container.j2") }}'

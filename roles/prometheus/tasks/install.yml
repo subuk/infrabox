@@ -1,0 +1,12 @@
+---
+- name: Inspect pinned image
+  ansible.builtin.command:
+    argv: [podman, image, exists, '{{ prometheus_image }}']
+  changed_when: false
+  failed_when: prometheus_image_exists.rc not in [0, 1]
+  register: prometheus_image_exists
+- name: Pull pinned image when absent
+  ansible.builtin.command:
+    argv: [podman, pull, '{{ prometheus_image }}']
+  changed_when: true
+  when: prometheus_image_exists.rc != 0

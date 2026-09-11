@@ -1,0 +1,9 @@
+---
+- name: Deploy application backends
+  hosts: infrabox
+  become: true
+  roles:
+    - role: postgresql
+      tags: [postgresql]
+    - role: redis
+      tags: [redis]

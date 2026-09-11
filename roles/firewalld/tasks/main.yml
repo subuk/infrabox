@@ -1,0 +1,13 @@
+---
+- name: Install firewalld
+  ansible.builtin.import_tasks: install.yml
+  tags: [install]
+- name: Configure firewalld
+  ansible.builtin.import_tasks: configure.yml
+  tags: [configure]
+- name: Service firewalld
+  ansible.builtin.import_tasks: service.yml
+  tags: [service]
+- name: Verify firewalld
+  ansible.builtin.import_tasks: verify.yml
+  tags: [verify]

@@ -1,0 +1,11 @@
+bind 0.0.0.0
+protected-mode yes
+port 0
+tls-port 6379
+tls-cert-file /run/infrabox-pki/server-chain.crt
+tls-key-file /run/infrabox-pki/server.key
+tls-ca-cert-file /run/infrabox-ca/root-ca.crt
+tls-auth-clients no
+requirepass {{ redis_password | to_json }}
+dir /data
+appendonly yes

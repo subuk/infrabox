@@ -1,0 +1,8 @@
+---
+- name: Read SELinux runtime state
+  ansible.builtin.command: getenforce
+  register: selinux_state
+  changed_when: false
+- name: Verify enforcing mode
+  ansible.builtin.assert:
+    that: selinux_state.stdout == 'Enforcing'

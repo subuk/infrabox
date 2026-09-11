@@ -1,0 +1,5 @@
+---
+- name: Verify root against host trust
+  ansible.builtin.command:
+    argv: [openssl, verify, '{{ cacerts_root_ca_source }}']
+  changed_when: false

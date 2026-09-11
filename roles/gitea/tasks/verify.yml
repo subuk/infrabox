@@ -1,0 +1,9 @@
+---
+- name: Verify Gitea application health
+  ansible.builtin.uri:
+    url: http://127.0.0.1:3000/api/healthz
+- name: Verify Gitea SSH listener
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: 2222
+    timeout: 30

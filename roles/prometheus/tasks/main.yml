@@ -1,0 +1,13 @@
+---
+- name: install prometheus
+  ansible.builtin.import_tasks: install.yml
+  tags: [install]
+- name: configure prometheus
+  ansible.builtin.import_tasks: configure.yml
+  tags: [configure]
+- name: service prometheus
+  ansible.builtin.import_tasks: service.yml
+  tags: [service]
+- name: verify prometheus
+  ansible.builtin.import_tasks: verify.yml
+  tags: [verify]

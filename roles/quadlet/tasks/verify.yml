@@ -1,0 +1,9 @@
+---
+- name: Verify generated service
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - is-active
+      - "{{ quadlet_name }}{{ '-network' if quadlet_type == 'network' else '' }}.service"
+  changed_when: false
+  when: quadlet_state == 'started'

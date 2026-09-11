@@ -1,0 +1,14 @@
+---
+- name: Enable firewalld
+  ansible.builtin.systemd_service:
+    name: firewalld
+    enabled: true
+    state: started
+- name: Apply public port rules to running firewall
+  ansible.posix.firewalld:
+    zone: '{{ firewalld_zone }}'
+    port: '{{ item }}'
+    state: enabled
+    permanent: true
+    immediate: true
+  loop: '{{ firewalld_public_ports }}'

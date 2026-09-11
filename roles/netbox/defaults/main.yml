@@ -1,0 +1,5 @@
+---
+netbox_image: docker.io/netboxcommunity/netbox:v4.7.0-5.1.1
+netbox_uid: 999
+netbox_admin_username: admin
+netbox_admin_email: admin@infrabox1.krglv.com

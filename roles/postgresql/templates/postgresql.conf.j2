@@ -1,0 +1,8 @@
+listen_addresses = '*'
+port = 5432
+ssl = on
+ssl_cert_file = '/run/infrabox-pki/server-chain.crt'
+ssl_key_file = '/run/infrabox-pki/server.key'
+ssl_min_protocol_version = 'TLSv1.2'
+hba_file = '/etc/postgresql/pg_hba.conf'
+password_encryption = 'scram-sha-256'

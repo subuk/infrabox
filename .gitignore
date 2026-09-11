@@ -1,0 +1,6 @@
+.venv/
+.ansible/
+.secrets/
+*.retry
+__pycache__/
+artifacts/

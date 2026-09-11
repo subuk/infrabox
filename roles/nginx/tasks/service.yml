@@ -1,0 +1,11 @@
+---
+- name: Validate nginx configuration
+  ansible.builtin.command: nginx -t
+  changed_when: false
+- name: Enable nginx
+  ansible.builtin.systemd_service:
+    name: nginx
+    state: started
+    enabled: true
+- name: Apply nginx configuration
+  ansible.builtin.meta: flush_handlers

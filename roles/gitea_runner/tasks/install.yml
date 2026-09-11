@@ -1,0 +1,20 @@
+---
+- name: Allocate non-overlapping subordinate IDs for Podman auto namespaces
+  ansible.builtin.script: allocate-subids.py
+  register: gitea_runner_subids
+  changed_when: gitea_runner_subids.stdout | trim == 'changed'
+- name: Inspect pinned image
+  ansible.builtin.command:
+    argv: [podman, image, exists, '{{ gitea_runner_image }}']
+  changed_when: false
+  failed_when: gitea_runner_image_exists.rc not in [0, 1]
+  register: gitea_runner_image_exists
+- name: Pull pinned image when absent
+  ansible.builtin.command:
+    argv: [podman, pull, '{{ gitea_runner_image }}']
+  changed_when: true
+  when: gitea_runner_image_exists.rc != 0
+- name: Install runner network filtering tool
+  ansible.builtin.dnf:
+    name: nftables
+    state: present

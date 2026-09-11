@@ -1,0 +1,13 @@
+---
+- name: install gitea
+  ansible.builtin.import_tasks: install.yml
+  tags: [install]
+- name: configure gitea
+  ansible.builtin.import_tasks: configure.yml
+  tags: [configure]
+- name: service gitea
+  ansible.builtin.import_tasks: service.yml
+  tags: [service]
+- name: verify gitea
+  ansible.builtin.import_tasks: verify.yml
+  tags: [verify]

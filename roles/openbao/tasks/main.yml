@@ -1,0 +1,13 @@
+---
+- name: Install OpenBao image
+  ansible.builtin.import_tasks: install.yml
+  tags: [install]
+- name: Configure OpenBao
+  ansible.builtin.import_tasks: configure.yml
+  tags: [configure]
+- name: Start OpenBao
+  ansible.builtin.import_tasks: service.yml
+  tags: [service]
+- name: Verify OpenBao runtime
+  ansible.builtin.import_tasks: verify.yml
+  tags: [verify]

@@ -1,0 +1,9 @@
+---
+- name: Deploy minimal monitoring
+  hosts: infrabox
+  become: true
+  roles:
+    - role: prometheus
+      tags: [prometheus]
+    - role: grafana
+      tags: [grafana]

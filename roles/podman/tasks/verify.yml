@@ -1,0 +1,15 @@
+---
+- name: Verify Podman runtime
+  ansible.builtin.command: podman info --format json
+  changed_when: false
+- name: Verify backend network
+  ansible.builtin.command: podman network exists infrabox
+  changed_when: false
+- name: Verify Podman API socket state
+  ansible.builtin.command: systemctl is-active podman.socket
+  register: podman_socket_state
+  changed_when: false
+  failed_when: false
+- name: Assert API socket policy
+  ansible.builtin.assert:
+    that: (podman_socket_state.stdout == 'active') == (podman_api_enabled | bool)

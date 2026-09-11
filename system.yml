@@ -1,0 +1,13 @@
+---
+- name: Configure InfraBox system
+  hosts: infrabox
+  become: true
+  roles:
+    - role: packages
+      tags: [packages]
+    - role: chrony
+      tags: [chrony]
+    - role: selinux
+      tags: [selinux]
+    - role: firewalld
+      tags: [firewalld]

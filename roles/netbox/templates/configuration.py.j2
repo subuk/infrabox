@@ -1,0 +1,19 @@
+import os
+ALLOWED_HOSTS = ["netbox.{{ infrabox_domain }}", "localhost", "127.0.0.1"]
+DATABASES = {"default": {
+    "ENGINE": "django.db.backends.postgresql",
+    "NAME": "netbox", "USER": "netbox", "PASSWORD": os.environ["DB_PASSWORD"],
+    "HOST": "postgresql.{{ infrabox_internal_domain }}", "PORT": 5432,
+    "OPTIONS": {"sslmode": "verify-full", "sslrootcert": "/run/infrabox-ca/root-ca.crt"},
+}}
+REDIS = {kind: {
+    "HOST": "redis.{{ infrabox_internal_domain }}", "PORT": 6379,
+    "PASSWORD": os.environ["REDIS_PASSWORD"], "DATABASE": database,
+    "SSL": True, "CA_CERT_PATH": "/run/infrabox-ca/root-ca.crt",
+    "INSECURE_SKIP_TLS_VERIFY": False,
+    "KWARGS": {"ssl_check_hostname": True},
+} for kind, database in [("tasks", 0), ("caching", 1)]}
+SECRET_KEY = os.environ["SECRET_KEY"]
+API_TOKEN_PEPPERS = {1: os.environ["API_TOKEN_PEPPER_1"]}
+CSRF_TRUSTED_ORIGINS = ["https://netbox.{{ infrabox_domain }}"]
+CENSUS_REPORTING_ENABLED = False

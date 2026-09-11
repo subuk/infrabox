@@ -1,0 +1,11 @@
+---
+- name: Verify Grafana database health
+  ansible.builtin.uri:
+    url: http://127.0.0.1:3001/api/health
+  register: grafana_health
+  retries: 40
+  delay: 3
+  until: grafana_health.status == 200
+- name: Require healthy database
+  ansible.builtin.assert:
+    that: grafana_health.json.database == 'ok'

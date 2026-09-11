@@ -1,0 +1,13 @@
+---
+- name: install postgresql
+  ansible.builtin.import_tasks: install.yml
+  tags: [install]
+- name: configure postgresql
+  ansible.builtin.import_tasks: configure.yml
+  tags: [configure]
+- name: service postgresql
+  ansible.builtin.import_tasks: service.yml
+  tags: [service]
+- name: verify postgresql
+  ansible.builtin.import_tasks: verify.yml
+  tags: [verify]

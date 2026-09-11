@@ -1,0 +1,7 @@
+---
+nginx_package: nginx-1.26.3-6.el10_2.6
+nginx_upstreams:
+  - {name: git, address: 'http://127.0.0.1:3000'}
+  - {name: netbox, address: 'http://127.0.0.1:8080'}
+  - {name: grafana, address: 'http://127.0.0.1:3001'}
+  - {name: vault, address: 'https://127.0.0.1:8200'}

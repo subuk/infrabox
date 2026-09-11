@@ -1,0 +1,16 @@
+table inet infrabox_runner {}
+flush table inet infrabox_runner
+table inet infrabox_runner {
+  chain input {
+    type filter hook input priority -10; policy accept;
+    iifname "{{ gitea_runner_interface }}" meta nfproto ipv6 drop
+    iifname "{{ gitea_runner_interface }}" tcp dport { 53, 443 } accept
+    iifname "{{ gitea_runner_interface }}" udp dport 53 accept
+    iifname "{{ gitea_runner_interface }}" drop
+  }
+  chain forward {
+    type filter hook forward priority -10; policy accept;
+    iifname "{{ gitea_runner_interface }}" meta nfproto ipv6 drop
+    iifname "{{ gitea_runner_interface }}" ip daddr { 0.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16, 224.0.0.0/4, 240.0.0.0/4 } drop
+  }
+}

@@ -1,0 +1,7 @@
+---
+- name: Deploy isolated user-facing CI runner
+  hosts: infrabox
+  become: true
+  roles:
+    - role: gitea_runner
+      tags: [gitea_runner]

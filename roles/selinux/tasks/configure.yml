@@ -1,0 +1,10 @@
+---
+- name: Enforce SELinux
+  ansible.posix.selinux:
+    policy: targeted
+    state: enforcing
+  register: selinux_result
+- name: Require reboot if SELinux was disabled
+  ansible.builtin.assert:
+    that: not selinux_result.reboot_required
+    fail_msg: Reboot the host to activate SELinux, then rerun this playbook.

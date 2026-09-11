@@ -1,0 +1,11 @@
+[Unit]
+Description=InfraBox runner-only network restrictions
+After=firewalld.service
+Before=gitea-runner.service
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/nft -f /etc/infrabox/gitea-runner/firewall.nft
+ExecReload=/usr/sbin/nft -f /etc/infrabox/gitea-runner/firewall.nft
+RemainAfterExit=yes
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,44 @@
+---
+- name: Verify NetBox web health
+  ansible.builtin.uri:
+    url: http://127.0.0.1:8080/login/
+  register: netbox_verify_ready
+  until: netbox_verify_ready.status == 200
+  retries: 40
+  delay: 3
+- name: Verify worker application health
+  ansible.builtin.command:
+    argv: [podman, exec, netbox-worker, /opt/netbox/venv/bin/python, /opt/netbox/netbox/manage.py, rqstats, --interval, '0']
+  changed_when: false
+- name: Verify actual NetBox database and both Redis TLS connections
+  ansible.builtin.command:
+    argv:
+      - podman
+      - exec
+      - '{{ item }}'
+      - /opt/netbox/venv/bin/python
+      - /opt/netbox/netbox/manage.py
+      - shell
+      - -c
+      - |
+        import ssl
+        from django.db import connection
+        from django_redis import get_redis_connection
+        import django_rq
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT ssl FROM pg_stat_ssl WHERE pid=pg_backend_pid()')
+            assert cursor.fetchone()[0]
+        assert connection.settings_dict['OPTIONS']['sslmode'] == 'verify-full'
+        for client in [django_rq.get_connection('default'), get_redis_connection('default')]:
+            assert client.ping()
+            transport = client.connection_pool.get_connection()
+            try:
+                transport.connect()
+                assert isinstance(transport._sock, ssl.SSLSocket)
+                assert transport._sock.context.check_hostname
+                assert transport._sock.context.verify_mode == ssl.CERT_REQUIRED
+            finally:
+                client.connection_pool.release(transport)
+        print('Application PostgreSQL and task/cache Redis verified TLS passed.')
+  loop: [netbox, netbox-worker]
+  changed_when: false

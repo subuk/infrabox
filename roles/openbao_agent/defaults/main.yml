@@ -1,0 +1,29 @@
+---
+openbao_agent_version: '2.6.2'
+openbao_agent_openbao_address: 'https://openbao.{{ infrabox_internal_domain }}:8200'
+openbao_agent_controller_dir: '{{ playbook_dir }}/.secrets/{{ inventory_hostname }}'
+openbao_agent_local_socket: /run/infrabox-openbao/api.sock
+openbao_agent_certificate_ttl: 336h
+openbao_agent_certificates:
+  - name: openbao
+    common_name: 'openbao.{{ infrabox_internal_domain }}'
+    uid: 991
+    gid: 991
+  - name: postgresql
+    common_name: 'postgresql.{{ infrabox_internal_domain }}'
+    uid: 999
+    gid: 999
+  - name: redis
+    common_name: 'redis.{{ infrabox_internal_domain }}'
+    uid: 999
+    gid: 999
+  - name: nginx
+    common_name: '{{ infrabox_domain }}'
+    alt_names:
+      - 'git.{{ infrabox_domain }}'
+      - 'netbox.{{ infrabox_domain }}'
+      - 'vault.{{ infrabox_domain }}'
+      - 'grafana.{{ infrabox_domain }}'
+    uid: 0
+    gid: 0
+openbao_agent_secret_id_rotate_after_seconds: 86400

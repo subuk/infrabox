@@ -1,0 +1,14 @@
+---
+tpm2_pkcs11_device: /dev/tpmrm0
+tpm2_pkcs11_packages:
+  - tpm2-tools-5.7-5.el10
+  - tpm2-pkcs11-1.9.0-7.el10
+  - tpm2-pkcs11-tools-1.9.0-7.el10
+  - opensc-0.26.1-1.el10
+tpm2_pkcs11_store_dir: /var/lib/infrabox/tpm2-pkcs11
+tpm2_pkcs11_token_label: InfraBox
+tpm2_pkcs11_key_label: openbao-unseal
+tpm2_pkcs11_key_bits: 4096
+tpm2_pkcs11_library: /usr/lib64/pkcs11/libtpm2_pkcs11.so
+tpm2_pkcs11_runtime_uid: 991
+tpm2_pkcs11_runtime_gid: 991

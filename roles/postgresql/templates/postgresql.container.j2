@@ -1,0 +1,25 @@
+[Unit]
+Description=InfraBox PostgreSQL
+After=openbao-agent.service
+[Container]
+Image={{ postgresql_image }}
+ContainerName=postgresql
+User={{ postgresql_uid }}:{{ postgresql_gid }}
+DropCapability=all
+NoNewPrivileges=true
+Network=infrabox.network
+NetworkAlias=postgresql.{{ infrabox_internal_domain }}
+Environment=POSTGRES_PASSWORD_FILE=/run/secrets/admin-password
+Environment="POSTGRES_INITDB_ARGS=--auth-local=peer --auth-host=scram-sha-256"
+Volume={{ infrabox_storage_root }}/postgresql:/var/lib/postgresql/data:Z
+Volume={{ infrabox_config_root }}/postgresql/postgresql.conf:/etc/postgresql/postgresql.conf:ro,Z
+Volume={{ infrabox_config_root }}/postgresql/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro,Z
+Volume={{ infrabox_config_root }}/postgresql/admin-password:/run/secrets/admin-password:ro,Z
+Volume={{ infrabox_pki_root }}/postgresql:/run/infrabox-pki:ro,Z
+Volume={{ infrabox_root_ca_path }}:/run/infrabox-ca/root-ca.crt:ro,z
+Exec=postgres -c config_file=/etc/postgresql/postgresql.conf
+[Service]
+Restart=on-failure
+TimeoutStartSec=180
+[Install]
+WantedBy=multi-user.target

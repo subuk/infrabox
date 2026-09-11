@@ -1,0 +1,13 @@
+---
+- name: Set appliance timezone
+  ansible.builtin.file:
+    src: '/usr/share/zoneinfo/{{ infrabox_timezone }}'
+    dest: /etc/localtime
+    state: link
+    force: true
+- name: Configure chrony
+  ansible.builtin.template:
+    src: chrony.conf.j2
+    dest: /etc/chrony.conf
+    mode: '0644'
+  notify: Restart chrony

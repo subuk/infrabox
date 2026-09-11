@@ -1,0 +1,3 @@
+---
+firewalld_zone: public
+firewalld_public_ports: [22/tcp, 80/tcp, 443/tcp, 2222/tcp]

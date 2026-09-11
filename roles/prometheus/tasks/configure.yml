@@ -1,0 +1,32 @@
+---
+- name: Create configuration directory
+  ansible.builtin.file:
+    path: '{{ infrabox_config_root }}/prometheus'
+    state: directory
+    mode: '0755'
+- name: Create persistent data directory
+  ansible.builtin.file:
+    path: '{{ infrabox_storage_root }}/prometheus'
+    state: directory
+    owner: '{{ prometheus_uid }}'
+    group: '{{ prometheus_uid }}'
+    mode: '0700'
+- name: Configure Prometheus self monitoring
+  ansible.builtin.copy:
+    dest: '{{ infrabox_config_root }}/prometheus/prometheus.yml'
+    mode: '0644'
+    content: |
+      global:
+        scrape_interval: 30s
+      scrape_configs:
+        - job_name: prometheus
+          static_configs:
+            - targets: ['localhost:9090']
+  notify: Restart prometheus
+- name: Define Prometheus Quadlet
+  ansible.builtin.include_role:
+    name: quadlet
+    tasks_from: configure
+  vars:
+    quadlet_name: prometheus
+    quadlet_definition: '{{ lookup("ansible.builtin.template", "prometheus.container.j2") }}'

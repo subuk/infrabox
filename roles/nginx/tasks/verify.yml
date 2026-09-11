@@ -1,0 +1,14 @@
+---
+- name: Verify nginx configuration
+  ansible.builtin.command: nginx -t
+  changed_when: false
+- name: Verify trusted OpenBao public HTTPS route
+  ansible.builtin.uri:
+    url: 'https://vault.{{ infrabox_domain }}/v1/sys/health'
+  register: nginx_openbao_health
+- name: Verify trusted Gitea public HTTPS route
+  ansible.builtin.uri:
+    url: 'https://git.{{ infrabox_domain }}/api/healthz'
+- name: Verify trusted NetBox public HTTPS route
+  ansible.builtin.uri:
+    url: 'https://netbox.{{ infrabox_domain }}/login/'

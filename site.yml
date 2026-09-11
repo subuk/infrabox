@@ -1,0 +1,10 @@
+---
+# Established appliances: initial TPM/OpenBao bootstrap is explicit (see README).
+- ansible.builtin.import_playbook: foundation.yml
+- ansible.builtin.import_playbook: pki.yml
+- ansible.builtin.import_playbook: services.yml
+- ansible.builtin.import_playbook: applications.yml
+- ansible.builtin.import_playbook: edge.yml
+- ansible.builtin.import_playbook: observability.yml
+- ansible.builtin.import_playbook: ci.yml
+- ansible.builtin.import_playbook: verify.yml

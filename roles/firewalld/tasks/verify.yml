@@ -1,0 +1,9 @@
+---
+- name: Verify firewall is running
+  ansible.builtin.command: firewall-cmd --state
+  changed_when: false
+- name: Verify allowed ports
+  ansible.builtin.command:
+    argv: [firewall-cmd, '--zone={{ firewalld_zone }}', '--query-port={{ item }}']
+  loop: '{{ firewalld_public_ports }}'
+  changed_when: false

@@ -1,0 +1,7 @@
+---
+packages_prerequisites:
+  - python3
+  - python3-libselinux
+  - policycoreutils-python-utils
+  - openssl
+  - ca-certificates

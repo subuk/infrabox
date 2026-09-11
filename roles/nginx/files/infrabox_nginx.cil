@@ -1,0 +1,4 @@
+(type infrabox_proxy_port_t)
+(typeattributeset port_type (infrabox_proxy_port_t))
+(allow httpd_t infrabox_proxy_port_t (tcp_socket (name_connect)))
+(allow httpd_t infrabox_openbao_port_t (tcp_socket (name_connect)))

@@ -1,0 +1,18 @@
+---
+- name: Wait for OpenBao local management listener
+  ansible.builtin.uri:
+    url: http://localhost/v1/sys/health
+    unix_socket: '{{ openbao_local_socket }}'
+    status_code: [200, 501, 503]
+  register: openbao_local_health
+  retries: 20
+  delay: 3
+  until: openbao_local_health.status in [200, 501, 503]
+- name: Verify runtime seal type
+  ansible.builtin.uri:
+    url: http://localhost/v1/sys/seal-status
+    unix_socket: '{{ openbao_local_socket }}'
+  register: openbao_seal_status
+- name: Assert PKCS11 seal
+  ansible.builtin.assert:
+    that: openbao_seal_status.json.type == 'pkcs11'

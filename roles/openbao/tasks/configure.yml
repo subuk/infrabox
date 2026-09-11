@@ -1,0 +1,100 @@
+---
+- name: Create OpenBao identity
+  ansible.builtin.group:
+    name: infrabox-openbao
+    gid: '{{ openbao_gid }}'
+    system: true
+- name: Create OpenBao service user
+  ansible.builtin.user:
+    name: infrabox-openbao
+    uid: '{{ openbao_uid }}'
+    group: infrabox-openbao
+    groups: tss
+    system: true
+    shell: /sbin/nologin
+    create_home: false
+- name: Create OpenBao directories
+  ansible.builtin.file:
+    path: '{{ item }}'
+    state: directory
+    owner: '{{ openbao_uid }}'
+    group: '{{ openbao_gid }}'
+    mode: '0700'
+  loop:
+    - '{{ infrabox_storage_root }}/openbao'
+    - '{{ infrabox_pki_root }}/openbao'
+    - /run/infrabox-openbao
+- name: Define runtime directory for reboot
+  ansible.builtin.copy:
+    dest: /etc/tmpfiles.d/infrabox-openbao.conf
+    mode: '0644'
+    content: |
+      d /run/infrabox-openbao 0700 {{ openbao_uid }} {{ openbao_gid }} -
+- name: Resolve internal OpenBao name from host
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '^127\.0\.0\.1\s+openbao\.'
+    line: '127.0.0.1 openbao.{{ infrabox_internal_domain }}'
+- name: Render restricted TPM SELinux policy
+  ansible.builtin.copy:
+    src: infrabox_openbao.cil
+    dest: /etc/infrabox/openbao/infrabox_openbao.cil
+    mode: '0644'
+  register: openbao_selinux_policy
+- name: List SELinux modules
+  ansible.builtin.command: semodule -l
+  changed_when: false
+  register: openbao_selinux_modules
+- name: Load dedicated OpenBao SELinux policy
+  ansible.builtin.command:
+    argv: [semodule, -i, /usr/share/udica/templates/base_container.cil, /usr/share/udica/templates/net_container.cil, /etc/infrabox/openbao/infrabox_openbao.cil]
+  when: openbao_selinux_policy.changed or 'infrabox_openbao' not in openbao_selinux_modules.stdout
+  changed_when: true
+- name: Read current SELinux port labels
+  ansible.builtin.command: semanage port -l
+  changed_when: false
+  register: openbao_port_labels
+- name: Label only OpenBao API port
+  ansible.builtin.command: semanage port -m -t infrabox_openbao_port_t -p tcp 8200
+  when: openbao_port_labels.stdout is not search('infrabox_openbao_port_t[^\n]*8200')
+  changed_when: true
+- name: Label only OpenBao cluster port
+  ansible.builtin.command: semanage port -a -t infrabox_openbao_port_t -p tcp 8201
+  when: openbao_port_labels.stdout is not search('infrabox_openbao_port_t[^\n]*8201')
+  changed_when: true
+- name: Read TPM device group
+  ansible.builtin.stat:
+    path: '{{ tpm2_pkcs11_device }}'
+  register: openbao_tpm_device
+- name: Require TPM user PIN
+  ansible.builtin.assert:
+    that: tpm2_pkcs11_user_pin | default('') | length > 0
+  no_log: true
+- name: Protect persistent HSM runtime PIN
+  ansible.builtin.copy:
+    dest: /etc/infrabox/openbao/hsm.env
+    content: |
+      BAO_HSM_PIN={{ tpm2_pkcs11_user_pin }}
+    owner: root
+    group: root
+    mode: '0600'
+  no_log: true
+  notify: Restart OpenBao
+- name: Require listener certificate when TLS is selected
+  ansible.builtin.command:
+    argv: [openssl, x509, -in, '{{ infrabox_pki_root }}/openbao/server-chain.crt', -noout, -checkend, '0']
+  when: openbao_tls_enabled | bool
+  changed_when: false
+- name: Render OpenBao runtime configuration
+  ansible.builtin.template:
+    src: config.hcl.j2
+    dest: /etc/infrabox/openbao/config.hcl
+    mode: '0644'
+  notify: Restart OpenBao
+- name: Render OpenBao Quadlet
+  ansible.builtin.include_role:
+    name: quadlet
+    tasks_from: configure
+  vars:
+    quadlet_name: openbao
+    quadlet_definition: '{{ lookup("ansible.builtin.template", "openbao.container.j2") }}'

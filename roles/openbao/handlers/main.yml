@@ -1,0 +1,5 @@
+---
+- name: Restart OpenBao
+  ansible.builtin.systemd_service:
+    name: openbao.service
+    state: restarted

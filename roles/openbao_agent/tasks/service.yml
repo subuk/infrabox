@@ -1,0 +1,17 @@
+---
+- name: Reload Agent unit
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when: (openbao_agent_unit is defined and openbao_agent_unit.changed) or (openbao_agent_rotation_units is defined and openbao_agent_rotation_units.changed)
+- name: Enable OpenBao Agent
+  ansible.builtin.systemd_service:
+    name: openbao-agent
+    state: started
+    enabled: true
+- name: Apply Agent configuration
+  ansible.builtin.meta: flush_handlers
+- name: Enable SecretID rotation checks
+  ansible.builtin.systemd_service:
+    name: openbao-agent-secret-id.timer
+    state: started
+    enabled: true

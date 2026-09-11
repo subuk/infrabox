@@ -1,0 +1,24 @@
+[Unit]
+Description=InfraBox NetBox worker
+After=netbox.service postgresql.service redis.service
+Requires=netbox.service postgresql.service
+Wants=redis.service
+[Container]
+Image={{ netbox_image }}
+ContainerName=netbox-worker
+User={{ netbox_uid }}:0
+DropCapability=all
+NoNewPrivileges=true
+Network=infrabox.network
+EnvironmentFile={{ infrabox_config_root }}/netbox/netbox.env
+Volume={{ infrabox_config_root }}/netbox/configuration.py:/etc/netbox/config/configuration.py:ro,z
+Volume={{ infrabox_storage_root }}/netbox/media:/opt/netbox/netbox/media:z
+Volume={{ infrabox_storage_root }}/netbox/reports:/opt/netbox/netbox/reports:z
+Volume={{ infrabox_storage_root }}/netbox/scripts:/opt/netbox/netbox/scripts:z
+Volume={{ infrabox_root_ca_path }}:/run/infrabox-ca/root-ca.crt:ro,z
+Exec=/opt/netbox/venv/bin/python /opt/netbox/netbox/manage.py rqworker
+[Service]
+Restart=on-failure
+TimeoutStartSec=600
+[Install]
+WantedBy=multi-user.target

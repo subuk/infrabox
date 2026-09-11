@@ -1,0 +1,13 @@
+---
+- name: Apply runner Quadlet
+  ansible.builtin.include_role:
+    name: quadlet
+    tasks_from: service
+  vars:
+    quadlet_name: gitea-runner
+    quadlet_type: container
+- name: Apply changed runner execution configuration
+  ansible.builtin.systemd_service:
+    name: gitea-runner.service
+    state: restarted
+  when: gitea_runner_config is defined and gitea_runner_config.changed

@@ -1,0 +1,13 @@
+---
+- name: install netbox
+  ansible.builtin.import_tasks: install.yml
+  tags: [install]
+- name: configure netbox
+  ansible.builtin.import_tasks: configure.yml
+  tags: [configure]
+- name: service netbox
+  ansible.builtin.import_tasks: service.yml
+  tags: [service]
+- name: verify netbox
+  ansible.builtin.import_tasks: verify.yml
+  tags: [verify]

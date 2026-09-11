@@ -1,0 +1,7 @@
+---
+- name: Configure initialization and PKI
+  ansible.builtin.import_tasks: configure.yml
+  tags: [configure]
+- name: Verify PKI
+  ansible.builtin.import_tasks: verify.yml
+  tags: [verify]

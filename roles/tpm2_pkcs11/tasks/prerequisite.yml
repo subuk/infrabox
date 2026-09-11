@@ -1,0 +1,16 @@
+---
+- name: Inspect TPM resource manager
+  ansible.builtin.stat:
+    path: '{{ tpm2_pkcs11_device }}'
+  register: tpm2_pkcs11_device_stat
+- name: Require physical or virtual TPM
+  ansible.builtin.assert:
+    that:
+      - tpm2_pkcs11_device_stat.stat.exists
+      - tpm2_pkcs11_device_stat.stat.ischr | default(false)
+    fail_msg: Enable a persistent TPM 2.0 in the hypervisor; /dev/tpmrm0 is required. No software unseal fallback is permitted.
+- name: Verify TPM communication
+  ansible.builtin.command: tpm2_getcap properties-fixed
+  environment:
+    TPM2TOOLS_TCTI: 'device:{{ tpm2_pkcs11_device }}'
+  changed_when: false

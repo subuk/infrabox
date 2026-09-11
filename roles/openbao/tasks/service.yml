@@ -1,0 +1,9 @@
+---
+- name: Apply OpenBao Quadlet
+  ansible.builtin.include_role:
+    name: quadlet
+    tasks_from: service
+  vars:
+    quadlet_name: openbao
+- name: Apply runtime configuration changes
+  ansible.builtin.meta: flush_handlers

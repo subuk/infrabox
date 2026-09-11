@@ -1,0 +1,4 @@
+---
+postgresql_image: docker.io/library/postgres:17.11-bookworm
+postgresql_uid: 999
+postgresql_gid: 999

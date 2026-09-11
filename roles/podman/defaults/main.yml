@@ -1,0 +1,3 @@
+---
+podman_package: podman-5.8.2-5.el10_2.alma.1
+podman_api_enabled: false

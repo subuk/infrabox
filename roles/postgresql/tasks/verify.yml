@@ -1,0 +1,29 @@
+---
+- name: Verify PostgreSQL is ready
+  ansible.builtin.command: podman exec --user postgres postgresql pg_isready -U postgres
+  changed_when: false
+- name: Verify application TLS connections with hostname validation
+  ansible.builtin.command:
+    argv:
+      - podman
+      - exec
+      - --env
+      - PGPASSWORD
+      - postgresql
+      - psql
+      - -XAt
+      - 'host=postgresql.{{ infrabox_internal_domain }} user={{ item.name }} dbname={{ item.name }} sslmode=verify-full sslrootcert=/run/infrabox-ca/root-ca.crt'
+      - -c
+      - 'SELECT ssl FROM pg_stat_ssl WHERE pid=pg_backend_pid()'
+  environment:
+    PGPASSWORD: '{{ item.password }}'
+  loop:
+    - {name: gitea, password: '{{ gitea_database_password }}'}
+    - {name: netbox, password: '{{ netbox_database_password }}'}
+    - {name: grafana, password: '{{ grafana_database_password }}'}
+  loop_control:
+    label: '{{ item.name }}'
+  register: postgresql_tls_result
+  changed_when: false
+  failed_when: postgresql_tls_result.rc != 0 or postgresql_tls_result.stdout != 't'
+  no_log: true

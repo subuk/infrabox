@@ -1,0 +1,9 @@
+---
+- name: Permit appliance services persistently before starting firewall
+  ansible.posix.firewalld:
+    zone: '{{ firewalld_zone }}'
+    port: '{{ item }}'
+    state: enabled
+    permanent: true
+    offline: true
+  loop: '{{ firewalld_public_ports }}'

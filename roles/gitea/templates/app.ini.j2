@@ -1,0 +1,42 @@
+APP_NAME = InfraBox Git
+RUN_MODE = prod
+RUN_USER = git
+WORK_PATH = /var/lib/gitea
+[server]
+DOMAIN = git.{{ infrabox_domain }}
+ROOT_URL = https://git.{{ infrabox_domain }}/
+HTTP_ADDR = 0.0.0.0
+HTTP_PORT = 3000
+START_SSH_SERVER = true
+SSH_DOMAIN = git.{{ infrabox_domain }}
+SSH_PORT = 2222
+SSH_LISTEN_PORT = 2222
+SSH_LISTEN_HOST = 0.0.0.0
+APP_DATA_PATH = /var/lib/gitea/data
+LFS_START_SERVER = true
+LFS_JWT_SECRET = {{ (gitea_signing_secrets.stdout | from_json).LFS_JWT_SECRET or ((gitea_secret_key ~ ':lfs') | hash('sha256')) }}
+[database]
+DB_TYPE = postgres
+HOST = postgresql.{{ infrabox_internal_domain }}:5432
+NAME = gitea
+USER = gitea
+PASSWD = {{ gitea_database_password | to_json }}
+SSL_MODE = verify-full
+[security]
+INSTALL_LOCK = true
+SECRET_KEY = {{ gitea_secret_key }}
+INTERNAL_TOKEN = {{ gitea_internal_token }}
+[service]
+DISABLE_REGISTRATION = true
+REQUIRE_SIGNIN_VIEW = true
+[actions]
+ENABLED = true
+[packages]
+ENABLED = true
+[repository]
+ROOT = /var/lib/gitea/git/repositories
+[log]
+MODE = console
+LEVEL = Info
+[oauth2]
+JWT_SECRET = {{ (gitea_signing_secrets.stdout | from_json).JWT_SECRET or ((gitea_secret_key ~ ':oauth2') | hash('sha256')) }}

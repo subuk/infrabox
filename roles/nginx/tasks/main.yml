@@ -1,0 +1,13 @@
+---
+- name: install nginx
+  ansible.builtin.import_tasks: install.yml
+  tags: [install]
+- name: configure nginx
+  ansible.builtin.import_tasks: configure.yml
+  tags: [configure]
+- name: service nginx
+  ansible.builtin.import_tasks: service.yml
+  tags: [service]
+- name: verify nginx
+  ansible.builtin.import_tasks: verify.yml
+  tags: [verify]

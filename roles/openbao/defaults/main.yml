@@ -1,0 +1,13 @@
+---
+openbao_version: '2.6.2'
+openbao_archive_sha256: 340511b6f87662b80252c202a7c5aa90dbe32341ea741458d49ce6839c2d7721
+openbao_image: localhost/infrabox-openbao:2.6.2-tpm1
+openbao_uid: 991
+openbao_gid: 991
+openbao_tls_enabled: true
+openbao_pkcs11_library: /usr/lib64/pkcs11/libtpm2_pkcs11.so
+openbao_pkcs11_token_label: '{{ tpm2_pkcs11_token_label }}'
+openbao_pkcs11_key_label: '{{ tpm2_pkcs11_key_label }}'
+openbao_pkcs11_mechanism: RSA_PKCS_OAEP
+openbao_pkcs11_rsa_oaep_hash: sha256
+openbao_local_socket: /run/infrabox-openbao/api.sock

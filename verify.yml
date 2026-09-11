@@ -1,0 +1,21 @@
+---
+- name: Verify final InfraBox appliance
+  hosts: infrabox
+  become: true
+  tasks:
+    - name: Require final HTTPS transport
+      ansible.builtin.assert:
+        that:
+          - openbao_tls_enabled | bool
+          - openbao_agent_openbao_address.startswith('https://')
+    - name: Run component verification
+      ansible.builtin.include_role:
+        name: '{{ infrabox_verify_component }}'
+        tasks_from: verify
+      loop: [chrony, selinux, firewalld, podman, tpm2_pkcs11, openbao, openbao_bootstrap, openbao_agent, cacerts, postgresql, redis, gitea, netbox, nginx, prometheus, grafana, gitea_runner]
+      loop_control:
+        loop_var: infrabox_verify_component
+    - name: Verify runtime isolation and certificate contracts
+      ansible.builtin.script:
+        cmd: 'scripts/verify-runtime.py {{ infrabox_domain }}'
+      changed_when: false

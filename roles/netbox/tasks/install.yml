@@ -1,0 +1,12 @@
+---
+- name: Inspect pinned image
+  ansible.builtin.command:
+    argv: [podman, image, exists, '{{ netbox_image }}']
+  changed_when: false
+  failed_when: netbox_image_exists.rc not in [0, 1]
+  register: netbox_image_exists
+- name: Pull pinned image when absent
+  ansible.builtin.command:
+    argv: [podman, pull, '{{ netbox_image }}']
+  changed_when: true
+  when: netbox_image_exists.rc != 0

@@ -1,0 +1,9 @@
+---
+- name: Regenerate systemd units
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when: quadlet_rendered is defined and quadlet_rendered.changed
+- name: Apply generated unit
+  ansible.builtin.systemd_service:
+    name: "{{ quadlet_name }}{{ '-network' if quadlet_type == 'network' else '' }}.service"
+    state: "{{ 'restarted' if quadlet_state == 'started' and quadlet_rendered is defined and quadlet_rendered.changed else quadlet_state }}"

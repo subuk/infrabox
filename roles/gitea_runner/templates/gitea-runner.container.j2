@@ -1,0 +1,26 @@
+[Unit]
+Description=InfraBox isolated Gitea Runner
+After=nginx.service gitea.service infrabox-runner-firewall.service
+Requires=infrabox-runner-firewall.service
+[Container]
+Image={{ gitea_runner_image }}
+ContainerName=gitea-runner
+Network=infrabox-runner.network
+UserNS=auto:size=65536
+DropCapability=all
+NoNewPrivileges=true
+PidsLimit=512
+Environment=SSL_CERT_FILE=/run/infrabox-ca/root-ca.crt
+Environment=GIT_SSL_CAINFO=/run/infrabox-ca/root-ca.crt
+Volume={{ infrabox_storage_root }}/gitea-runner:/data:Z,U
+Volume={{ infrabox_config_root }}/gitea-runner/config.yaml:/config.yaml:ro,Z
+Volume={{ infrabox_root_ca_path }}:/run/infrabox-ca/root-ca.crt:ro,z
+WorkingDir=/data
+Entrypoint=/usr/local/bin/gitea-runner
+Exec=--config=/config.yaml daemon
+[Service]
+Restart=on-failure
+MemoryMax=2G
+CPUQuota=200%
+[Install]
+WantedBy=multi-user.target

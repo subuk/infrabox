@@ -1,0 +1,15 @@
+---
+- name: Install pinned native Agent binary from verified HSM archive
+  ansible.builtin.copy:
+    src: /etc/infrabox/openbao/image/bao
+    dest: /usr/local/bin/bao
+    remote_src: true
+    mode: '0755'
+  notify: Restart OpenBao Agent
+- name: Check native Agent version
+  ansible.builtin.command: /usr/local/bin/bao version
+  changed_when: false
+  register: openbao_agent_binary
+- name: Assert native Agent version
+  ansible.builtin.assert:
+    that: openbao_agent_version in openbao_agent_binary.stdout

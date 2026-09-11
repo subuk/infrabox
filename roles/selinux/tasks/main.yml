@@ -1,0 +1,7 @@
+---
+- name: Configure selinux
+  ansible.builtin.import_tasks: configure.yml
+  tags: [configure]
+- name: Verify selinux
+  ansible.builtin.import_tasks: verify.yml
+  tags: [verify]

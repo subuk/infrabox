@@ -1,0 +1,10 @@
+---
+- name: Configure Quadlet
+  ansible.builtin.import_tasks: configure.yml
+  tags: [configure]
+- name: Manage Quadlet service
+  ansible.builtin.import_tasks: service.yml
+  tags: [service]
+- name: Verify Quadlet service
+  ansible.builtin.import_tasks: verify.yml
+  tags: [verify]

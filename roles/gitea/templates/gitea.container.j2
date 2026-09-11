@@ -1,0 +1,24 @@
+[Unit]
+Description=InfraBox Gitea
+After=postgresql.service
+Requires=postgresql.service
+[Container]
+Image={{ gitea_image }}
+ContainerName=gitea
+User={{ gitea_uid }}:{{ gitea_uid }}
+DropCapability=all
+NoNewPrivileges=true
+Network=infrabox.network
+NetworkAlias=gitea.{{ infrabox_internal_domain }}
+PublishPort=127.0.0.1:3000:3000
+PublishPort=2222:2222
+Environment=SSL_CERT_FILE=/run/infrabox-ca/root-ca.crt
+Environment=PGSSLROOTCERT=/run/infrabox-ca/root-ca.crt
+Volume={{ infrabox_config_root }}/gitea:/etc/gitea:Z
+Volume={{ infrabox_storage_root }}/gitea:/var/lib/gitea:Z
+Volume={{ infrabox_root_ca_path }}:/run/infrabox-ca/root-ca.crt:ro,z
+[Service]
+Restart=on-failure
+TimeoutStartSec=180
+[Install]
+WantedBy=multi-user.target

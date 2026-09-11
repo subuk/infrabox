@@ -1,0 +1,33 @@
+pid_file = "/run/infrabox-openbao-agent/agent.pid"
+vault {
+  address = "{{ openbao_agent_openbao_address }}"
+  ca_cert = "{{ infrabox_root_ca_path }}"
+}
+auto_auth {
+  method "approle" {
+    config = {
+      role_id_file_path = "/etc/infrabox/openbao-agent/auth/role-id"
+      secret_id_file_path = "/etc/infrabox/openbao-agent/auth/secret-id"
+      remove_secret_id_file_after_reading = false
+    }
+  }
+  sink "file" {
+    config = {
+      path = "/run/infrabox-openbao-agent/token"
+      mode = 0600
+    }
+  }
+}
+{% for cert in openbao_agent_certificates %}
+template {
+  source = "/etc/infrabox/openbao-agent/templates/{{ cert.name }}.ctmpl"
+  destination = "/etc/infrabox/openbao-agent/rendered/{{ cert.name }}.json"
+  perms = "0600"
+  backup = false
+  error_on_missing_key = true
+  exec {
+    command = ["/usr/bin/python3", "/etc/infrabox/openbao-agent/render.py", "{{ cert.name }}"]
+    timeout = "30s"
+  }
+}
+{% endfor %}

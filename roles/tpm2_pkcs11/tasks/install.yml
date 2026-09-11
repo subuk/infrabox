@@ -1,0 +1,5 @@
+---
+- name: Install TPM tooling
+  ansible.builtin.dnf:
+    name: '{{ tpm2_pkcs11_packages }}'
+    state: present

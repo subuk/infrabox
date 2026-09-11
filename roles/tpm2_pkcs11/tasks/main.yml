@@ -1,0 +1,13 @@
+---
+- name: Install TPM tools
+  ansible.builtin.import_tasks: install.yml
+  tags: [install]
+- name: Check TPM prerequisite
+  ansible.builtin.import_tasks: prerequisite.yml
+  tags: [configure, verify]
+- name: Configure TPM token and key
+  ansible.builtin.import_tasks: configure.yml
+  tags: [configure]
+- name: Verify PKCS11 crypto
+  ansible.builtin.import_tasks: verify.yml
+  tags: [verify]

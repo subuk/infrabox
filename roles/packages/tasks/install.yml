@@ -1,0 +1,10 @@
+---
+- name: Require AlmaLinux 10
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.distribution == 'AlmaLinux'
+      - ansible_facts.distribution_major_version == '10'
+- name: Install host prerequisites
+  ansible.builtin.dnf:
+    name: '{{ packages_prerequisites }}'
+    state: present

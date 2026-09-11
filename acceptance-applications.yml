@@ -1,0 +1,35 @@
+---
+- name: Test private Git transports and isolated workflow execution
+  hosts: infrabox
+  become: true
+  tasks:
+    - name: Install development Git transport test client
+      ansible.builtin.dnf:
+        name: [git-core, openssh-clients]
+        state: present
+    - name: Install application acceptance helper
+      ansible.builtin.copy:
+        src: scripts/test-gitea-workflow.py
+        dest: /run/infrabox-test-gitea.py
+        mode: '0700'
+    - name: Exercise authenticated Git and a real Actions job
+      block:
+        - name: Run application acceptance
+          ansible.builtin.command:
+            argv: [python3, /run/infrabox-test-gitea.py]
+            stdin: '{{ {"domain": infrabox_domain, "password": gitea_admin_password} | to_json }}'
+          register: infrabox_application_acceptance
+          no_log: true
+          changed_when: false
+        - name: Report completed application acceptance
+          ansible.builtin.debug:
+            msg: '{{ infrabox_application_acceptance.stdout_lines }}'
+      rescue:
+        - name: Report sanitized acceptance failure
+          ansible.builtin.fail:
+            msg: '{{ infrabox_application_acceptance.stderr | replace(gitea_admin_password, "[redacted]") }}'
+      always:
+        - name: Remove application acceptance helper
+          ansible.builtin.file:
+            path: /run/infrabox-test-gitea.py
+            state: absent

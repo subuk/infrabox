@@ -1,0 +1,7 @@
+---
+- name: Install InfraBox host CA trust
+  hosts: infrabox
+  become: true
+  roles:
+    - role: cacerts
+      tags: [cacerts]

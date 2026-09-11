@@ -1,0 +1,13 @@
+---
+- name: install redis
+  ansible.builtin.import_tasks: install.yml
+  tags: [install]
+- name: configure redis
+  ansible.builtin.import_tasks: configure.yml
+  tags: [configure]
+- name: service redis
+  ansible.builtin.import_tasks: service.yml
+  tags: [service]
+- name: verify redis
+  ansible.builtin.import_tasks: verify.yml
+  tags: [verify]

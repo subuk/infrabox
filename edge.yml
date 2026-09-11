@@ -1,0 +1,7 @@
+---
+- name: Deploy native HTTPS edge
+  hosts: infrabox
+  become: true
+  roles:
+    - role: nginx
+      tags: [nginx]

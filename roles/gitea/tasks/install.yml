@@ -1,0 +1,12 @@
+---
+- name: Inspect pinned image
+  ansible.builtin.command:
+    argv: [podman, image, exists, '{{ gitea_image }}']
+  changed_when: false
+  failed_when: gitea_image_exists.rc not in [0, 1]
+  register: gitea_image_exists
+- name: Pull pinned image when absent
+  ansible.builtin.command:
+    argv: [podman, pull, '{{ gitea_image }}']
+  changed_when: true
+  when: gitea_image_exists.rc != 0

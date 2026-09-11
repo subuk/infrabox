@@ -1,0 +1,59 @@
+---
+- name: Require supported image architecture
+  ansible.builtin.assert:
+    that: ansible_facts.architecture == 'x86_64'
+- name: Create OpenBao image build directory
+  ansible.builtin.file:
+    path: /etc/infrabox/openbao/image
+    state: directory
+    mode: '0755'
+- name: Download checksum-pinned HSM archive
+  ansible.builtin.get_url:
+    url: 'https://github.com/openbao/openbao/releases/download/v{{ openbao_version }}/openbao-hsm_{{ openbao_version }}_linux_amd64.tar.gz'
+    dest: '/etc/infrabox/openbao/openbao-hsm-{{ openbao_version }}.tar.gz'
+    checksum: 'sha256:{{ openbao_archive_sha256 }}'
+    mode: '0644'
+  register: openbao_archive
+- name: Extract OpenBao HSM binary
+  ansible.builtin.unarchive:
+    src: '/etc/infrabox/openbao/openbao-hsm-{{ openbao_version }}.tar.gz'
+    dest: /etc/infrabox/openbao/image
+    remote_src: true
+  register: openbao_extracted
+- name: Copy image definition
+  ansible.builtin.copy:
+    src: '{{ playbook_dir }}/images/openbao/Containerfile'
+    dest: /etc/infrabox/openbao/image/Containerfile
+    mode: '0644'
+  register: openbao_containerfile
+- name: Inspect existing image
+  ansible.builtin.command:
+    argv: [podman, image, exists, '{{ openbao_image }}']
+  register: openbao_image_exists
+  changed_when: false
+  failed_when: openbao_image_exists.rc not in [0, 1]
+- name: Build HSM and TPM image
+  ansible.builtin.command:
+    argv: [podman, build, --tag, '{{ openbao_image }}', /etc/infrabox/openbao/image]
+  when: openbao_image_exists.rc != 0 or openbao_containerfile.changed or openbao_extracted.changed
+  changed_when: true
+- name: Verify binary in image
+  ansible.builtin.command:
+    argv: [podman, run, --rm, '{{ openbao_image }}', version]
+  register: openbao_image_version
+  changed_when: false
+- name: Require expected OpenBao version
+  ansible.builtin.assert:
+    that: openbao_version in openbao_image_version.stdout
+- name: Verify provider and its dynamic dependencies load inside image
+  ansible.builtin.command:
+    argv:
+      - podman
+      - run
+      - --rm
+      - --entrypoint
+      - python3
+      - '{{ openbao_image }}'
+      - -c
+      - 'import ctypes; ctypes.CDLL("{{ openbao_pkcs11_library }}")'
+  changed_when: false

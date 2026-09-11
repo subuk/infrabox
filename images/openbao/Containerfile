@@ -1,0 +1,5 @@
+FROM docker.io/library/almalinux:10.2@sha256:7b3a2db3971727029b6aed0e6c30ad0f3812229ac5447520acea308cb535800d
+RUN dnf -y install tpm2-pkcs11-1.9.0-7.el10 opensc-0.26.1-1.el10 && dnf clean all
+COPY bao /usr/local/bin/bao
+USER 991:991
+ENTRYPOINT ["/usr/local/bin/bao"]

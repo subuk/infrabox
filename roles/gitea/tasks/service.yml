@@ -1,0 +1,26 @@
+---
+- name: Apply gitea Quadlet
+  ansible.builtin.include_role:
+    name: quadlet
+    tasks_from: service
+  vars:
+    quadlet_name: gitea
+- name: Apply gitea configuration changes
+  ansible.builtin.meta: flush_handlers
+- name: Wait for Gitea health
+  ansible.builtin.uri:
+    url: http://127.0.0.1:3000/api/healthz
+  register: gitea_health
+  until: gitea_health.status == 200
+  retries: 40
+  delay: 3
+- name: List Gitea local administrators
+  ansible.builtin.command: podman exec --user 1000 gitea gitea --config /etc/gitea/app.ini admin user list --admin
+  register: gitea_admins
+  changed_when: false
+- name: Create initial local Gitea administrator
+  ansible.builtin.command:
+    argv: [podman, exec, --user, '1000', gitea, gitea, --config, /etc/gitea/app.ini, admin, user, create, --username, '{{ gitea_admin_username }}', --password, '{{ gitea_admin_password }}', --email, '{{ gitea_admin_email }}', --admin, --must-change-password=false]
+  when: gitea_admins.stdout is not search('(?m)^\d+\s+' ~ gitea_admin_username ~ '\s')
+  changed_when: true
+  no_log: true

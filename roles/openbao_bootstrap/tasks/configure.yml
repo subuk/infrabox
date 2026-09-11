@@ -1,0 +1,106 @@
+---
+- name: Check initialization status
+  ansible.builtin.uri:
+    url: http://localhost/v1/sys/init
+    unix_socket: '{{ openbao_bootstrap_local_socket }}'
+  register: openbao_bootstrap_init_status
+- name: Require explicit initialization request
+  ansible.builtin.assert:
+    that: openbao_bootstrap_init_status.json.initialized or openbao_bootstrap_initialize | bool
+    fail_msg: Set openbao_bootstrap_initialize=true explicitly for first initialization.
+- name: Create protected controller recovery directory
+  ansible.builtin.file:
+    path: '{{ openbao_bootstrap_controller_dir }}'
+    state: directory
+    mode: '0700'
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_python_interpreter: '{{ ansible_playbook_python }}'
+- name: Inspect retained initialization output
+  ansible.builtin.stat:
+    path: '{{ openbao_bootstrap_controller_dir }}/openbao-init.json'
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_python_interpreter: '{{ ansible_playbook_python }}'
+  register: openbao_bootstrap_saved_init
+- name: Prevent overwriting another initialization record
+  ansible.builtin.assert:
+    that: not openbao_bootstrap_saved_init.stat.exists
+    fail_msg: Controller initialization output already exists for an uninitialized server. Resolve the identity mismatch explicitly.
+  when: not openbao_bootstrap_init_status.json.initialized
+- name: Initialize with TPM-backed seal
+  ansible.builtin.uri:
+    url: http://localhost/v1/sys/init
+    unix_socket: '{{ openbao_bootstrap_local_socket }}'
+    method: PUT
+    body_format: json
+    body:
+      recovery_shares: 5
+      recovery_threshold: 3
+  register: openbao_bootstrap_initialization
+  when: not openbao_bootstrap_init_status.json.initialized
+  no_log: true
+- name: Save initialization output exclusively on controller
+  ansible.builtin.copy:
+    content: '{{ openbao_bootstrap_initialization.json | to_nice_json }}'
+    dest: '{{ openbao_bootstrap_controller_dir }}/openbao-init.json'
+    mode: '0600'
+    force: false
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_python_interpreter: '{{ ansible_playbook_python }}'
+  when: not openbao_bootstrap_init_status.json.initialized
+  no_log: true
+- name: Wait for automatic unseal
+  ansible.builtin.uri:
+    url: http://localhost/v1/sys/health
+    unix_socket: '{{ openbao_bootstrap_local_socket }}'
+  register: openbao_bootstrap_health
+  until: openbao_bootstrap_health.status == 200
+  retries: 20
+  delay: 3
+- name: Create bootstrap helper directory
+  ansible.builtin.file:
+    path: /etc/infrabox/openbao-bootstrap
+    state: directory
+    mode: '0700'
+- name: Install PKI bootstrap helper
+  ansible.builtin.copy:
+    src: bootstrap.py
+    dest: /etc/infrabox/openbao-bootstrap/bootstrap.py
+    mode: '0700'
+- name: Configure persistent PKI and Agent identity
+  ansible.builtin.command:
+    argv: [python3, /etc/infrabox/openbao-bootstrap/bootstrap.py]
+    stdin: '{{ openbao_bootstrap_parameters | to_json }}'
+  vars:
+    openbao_bootstrap_parameters:
+      token: '{{ (lookup("ansible.builtin.file", openbao_bootstrap_controller_dir ~ "/openbao-init.json") | from_json).root_token }}'
+      socket: '{{ openbao_bootstrap_local_socket }}'
+      domain: '{{ infrabox_domain }}'
+      internal_domain: '{{ infrabox_internal_domain }}'
+      root_ttl: '{{ openbao_bootstrap_root_ttl }}'
+      intermediate_ttl: '{{ openbao_bootstrap_intermediate_ttl }}'
+      server_ttl: '{{ openbao_bootstrap_server_certificate_ttl }}'
+      secret_id_ttl: '{{ openbao_bootstrap_agent_secret_id_ttl }}'
+  register: openbao_bootstrap_configuration
+  changed_when: openbao_bootstrap_configuration.rc == 0 and (openbao_bootstrap_configuration.stdout | from_json).changed
+  no_log: true
+- name: Create root certificate directory
+  ansible.builtin.file:
+    path: '{{ infrabox_pki_root }}'
+    state: directory
+    mode: '0755'
+- name: Export public RootCA
+  ansible.builtin.copy:
+    content: '{{ (openbao_bootstrap_configuration.stdout | from_json).root_ca }}'
+    dest: '{{ infrabox_root_ca_path }}'
+    mode: '0644'
+- name: Copy public RootCA to controller for client trust
+  ansible.builtin.fetch:
+    src: '{{ infrabox_root_ca_path }}'
+    dest: '{{ playbook_dir }}/artifacts/{{ inventory_hostname }}/root-ca.crt'
+    flat: true

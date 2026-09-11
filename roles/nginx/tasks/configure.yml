@@ -1,0 +1,39 @@
+---
+- name: Create nginx component directory
+  ansible.builtin.file:
+    path: '{{ infrabox_config_root }}/nginx'
+    state: directory
+    mode: '0755'
+- name: Install bounded nginx upstream SELinux policy
+  ansible.builtin.copy:
+    src: infrabox_nginx.cil
+    dest: '{{ infrabox_config_root }}/nginx/infrabox_nginx.cil'
+    mode: '0644'
+  register: nginx_selinux_policy
+- name: Inspect loaded policies
+  ansible.builtin.command: semodule -l
+  changed_when: false
+  register: nginx_selinux_modules
+- name: Load nginx upstream SELinux permissions
+  ansible.builtin.command: semodule -i /etc/infrabox/nginx/infrabox_nginx.cil
+  changed_when: true
+  when: nginx_selinux_policy.changed or 'infrabox_nginx' not in nginx_selinux_modules.stdout
+- name: Inspect SELinux upstream port labels
+  ansible.builtin.command: semanage port -l
+  changed_when: false
+  register: nginx_port_labels
+- name: Label Gitea and Grafana upstream ports
+  ansible.builtin.command: semanage port -m -t infrabox_proxy_port_t -p tcp 3000-3001
+  changed_when: true
+  when: nginx_port_labels.stdout is not search('infrabox_proxy_port_t[^\n]*3000-3001')
+- name: Label NetBox upstream port
+  ansible.builtin.command: semanage port -m -t infrabox_proxy_port_t -p tcp 8080
+  changed_when: true
+  when: nginx_port_labels.stdout is not search('infrabox_proxy_port_t[^\n]*8080')
+- name: Render native nginx configuration
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: /etc/nginx/nginx.conf
+    mode: '0644'
+    validate: nginx -t -c %s
+  notify: Reload nginx

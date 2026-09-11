@@ -1,0 +1,47 @@
+---
+- name: Create configuration directory
+  ansible.builtin.file:
+    path: '{{ infrabox_config_root }}/grafana'
+    state: directory
+    mode: '0755'
+- name: Create persistent data directory
+  ansible.builtin.file:
+    path: '{{ infrabox_storage_root }}/grafana'
+    state: directory
+    owner: '{{ grafana_uid }}'
+    group: '{{ grafana_uid }}'
+    mode: '0700'
+- name: Create Grafana datasource directory
+  ansible.builtin.file:
+    path: '{{ infrabox_config_root }}/grafana/datasources'
+    state: directory
+    mode: '0755'
+- name: Configure initial Prometheus datasource
+  ansible.builtin.copy:
+    dest: '{{ infrabox_config_root }}/grafana/datasources/prometheus.yml'
+    mode: '0644'
+    content: |
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          uid: infrabox-prometheus
+          type: prometheus
+          access: proxy
+          url: http://prometheus.{{ infrabox_internal_domain }}:9090
+          isDefault: true
+          editable: false
+  notify: Restart grafana
+- name: Render protected Grafana configuration
+  ansible.builtin.template:
+    src: grafana.env.j2
+    dest: '{{ infrabox_config_root }}/grafana/grafana.env'
+    mode: '0600'
+  no_log: true
+  notify: Restart grafana
+- name: Define Grafana Quadlet
+  ansible.builtin.include_role:
+    name: quadlet
+    tasks_from: configure
+  vars:
+    quadlet_name: grafana
+    quadlet_definition: '{{ lookup("ansible.builtin.template", "grafana.container.j2") }}'

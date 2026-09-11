@@ -1,0 +1,28 @@
+---
+- name: Apply generated service
+  ansible.builtin.include_role:
+    name: quadlet
+    tasks_from: service
+  vars:
+    quadlet_name: postgresql
+- name: Apply component configuration changes
+  ansible.builtin.meta: flush_handlers
+- name: Wait for PostgreSQL readiness
+  ansible.builtin.command: podman exec --user postgres postgresql pg_isready -U postgres
+  changed_when: false
+  register: postgresql_ready
+  retries: 30
+  delay: 3
+  until: postgresql_ready.rc == 0
+- name: Reconcile independent application databases and credentials
+  ansible.builtin.command:
+    argv: [python3, /etc/infrabox/postgresql/databases.py]
+    stdin: '{{ postgresql_databases | to_json }}'
+  vars:
+    postgresql_databases:
+      gitea: '{{ gitea_database_password }}'
+      netbox: '{{ netbox_database_password }}'
+      grafana: '{{ grafana_database_password }}'
+  register: postgresql_database_result
+  changed_when: postgresql_database_result.rc == 0 and (postgresql_database_result.stdout | from_json).changed
+  no_log: true

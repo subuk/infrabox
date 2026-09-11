@@ -1,0 +1,19 @@
+---
+- name: Create Quadlet directory
+  ansible.builtin.file:
+    path: /etc/containers/systemd
+    state: directory
+    mode: '0755'
+- name: Define internal application network
+  ansible.builtin.copy:
+    dest: /etc/containers/systemd/infrabox.network
+    mode: '0644'
+    content: |
+      [Unit]
+      Description=InfraBox backend network
+      [Network]
+      NetworkName=infrabox
+      Driver=bridge
+      [Install]
+      WantedBy=multi-user.target
+  register: podman_network_definition

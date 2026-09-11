@@ -1,0 +1,3 @@
+---
+chrony_pools:
+  - 2.almalinux.pool.ntp.org

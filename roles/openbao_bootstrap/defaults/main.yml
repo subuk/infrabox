@@ -1,0 +1,8 @@
+---
+openbao_bootstrap_initialize: false
+openbao_bootstrap_controller_dir: '{{ playbook_dir }}/.secrets/{{ inventory_hostname }}'
+openbao_bootstrap_local_socket: /run/infrabox-openbao/api.sock
+openbao_bootstrap_root_ttl: 87600h
+openbao_bootstrap_intermediate_ttl: 43800h
+openbao_bootstrap_server_certificate_ttl: 336h
+openbao_bootstrap_agent_secret_id_ttl: 604800

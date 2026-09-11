@@ -1,0 +1,29 @@
+---
+- name: Verify persistent TPM unseal and appliance reboot recovery
+  hosts: infrabox
+  become: true
+  tasks:
+    - name: Record existing public CA identity
+      ansible.builtin.command: openssl x509 -in /etc/infrabox/pki/root-ca.crt -noout -fingerprint -sha256
+      register: infrabox_ca_before_reboot
+      changed_when: false
+    - name: Reboot development appliance
+      ansible.builtin.reboot:
+        reboot_timeout: 600
+        post_reboot_delay: 20
+    - name: Wait for TPM-backed automatic unseal
+      ansible.builtin.uri:
+        url: http://localhost/v1/sys/health
+        unix_socket: /run/infrabox-openbao/api.sock
+      register: infrabox_boot_health
+      until: infrabox_boot_health.status == 200
+      retries: 40
+      delay: 3
+    - name: Read public CA identity after reboot
+      ansible.builtin.command: openssl x509 -in /etc/infrabox/pki/root-ca.crt -noout -fingerprint -sha256
+      register: infrabox_ca_after_reboot
+      changed_when: false
+    - name: Require preserved CA identity
+      ansible.builtin.assert:
+        that: infrabox_ca_before_reboot.stdout == infrabox_ca_after_reboot.stdout
+- ansible.builtin.import_playbook: verify.yml

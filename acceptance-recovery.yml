@@ -1,0 +1,48 @@
+---
+# Development-only outage test; recovery runs even if the test fails.
+- name: Exercise expired certificate and Agent credential recovery
+  hosts: infrabox
+  become: true
+  tasks:
+    - name: Require healthy Agent authentication before fault injection
+      ansible.builtin.include_role:
+        name: openbao_agent
+        tasks_from: verify
+    - name: Test controlled expiry and restore final state
+      block:
+        - name: Install development expiry test
+          ansible.builtin.copy:
+            src: scripts/test-expired-credentials.py
+            dest: /etc/infrabox/openbao-bootstrap/test-expired-credentials.py
+            mode: '0700'
+        - name: Test restricted rotation then allow test credentials to expire
+          ansible.builtin.command:
+            argv: [python3, /etc/infrabox/openbao-bootstrap/test-expired-credentials.py]
+            stdin: '{{ {"token": (lookup("file", playbook_dir ~ "/.secrets/" ~ inventory_hostname ~ "/openbao-init.json") | from_json).root_token} | to_json }}'
+          no_log: true
+          changed_when: true
+          register: infrabox_expiry_test
+      rescue:
+        - name: Report sanitized expiry-test failure
+          ansible.builtin.fail:
+            msg: '{{ infrabox_expiry_test.stderr }}'
+      always:
+        - name: Recover expired leaves using normal Ansible recovery tasks
+          ansible.builtin.include_role:
+            name: openbao_bootstrap
+            tasks_from: recover
+        - name: Repair expired Agent credentials and restore normal certificate lifetime
+          ansible.builtin.include_role:
+            name: openbao_agent
+        - name: Verify repaired authentication and rejection of expired credential
+          ansible.builtin.command:
+            argv: [python3, /etc/infrabox/openbao-bootstrap/test-expired-credentials.py, verify]
+            stdin: '{{ {"token": (lookup("file", playbook_dir ~ "/.secrets/" ~ inventory_hostname ~ "/openbao-init.json") | from_json).root_token} | to_json }}'
+          no_log: true
+          changed_when: false
+          when: infrabox_expiry_test is succeeded
+        - name: Remove development fault injection helper
+          ansible.builtin.file:
+            path: /etc/infrabox/openbao-bootstrap/test-expired-credentials.py
+            state: absent
+- ansible.builtin.import_playbook: verify.yml

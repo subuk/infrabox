@@ -1,0 +1,48 @@
+---
+- name: Verify Agent authenticated through its configured endpoint
+  ansible.builtin.command:
+    argv:
+      - python3
+      - -c
+      - |
+        import json, pathlib, ssl, urllib.request
+        token = pathlib.Path('/run/infrabox-openbao-agent/token').read_text().strip()
+        request = urllib.request.Request('{{ openbao_agent_openbao_address }}/v1/auth/token/lookup-self', headers={'X-Vault-Token': token})
+        with urllib.request.urlopen(request, context=ssl.create_default_context(cafile='{{ infrabox_root_ca_path }}'), timeout=10) as response:
+            identity = json.load(response)['data']
+        assert 'infrabox-openbao-agent' in identity['policies']
+  changed_when: false
+  no_log: true
+  register: openbao_agent_authenticated
+  until: openbao_agent_authenticated.rc == 0
+  retries: 30
+  delay: 3
+- name: Wait for validated certificate publication
+  ansible.builtin.command:
+    argv: [openssl, x509, -in, '{{ infrabox_pki_root }}/{{ item.name }}/server.crt', -noout, -checkend, '0']
+  changed_when: false
+  register: openbao_agent_leaf
+  until: openbao_agent_leaf.rc == 0
+  retries: 20
+  delay: 3
+  loop: '{{ openbao_agent_certificates }}'
+  loop_control:
+    label: '{{ item.name }}'
+- name: Verify chain and expected hostname
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - verify
+      - -purpose
+      - sslserver
+      - -verify_hostname
+      - '{{ item.common_name }}'
+      - -CAfile
+      - '{{ infrabox_root_ca_path }}'
+      - -untrusted
+      - '{{ infrabox_pki_root }}/{{ item.name }}/ca-chain.crt'
+      - '{{ infrabox_pki_root }}/{{ item.name }}/server.crt'
+  changed_when: false
+  loop: '{{ openbao_agent_certificates }}'
+  loop_control:
+    label: '{{ item.name }}'

@@ -1,0 +1,115 @@
+---
+- name: Create runner configuration directory
+  ansible.builtin.file:
+    path: '{{ infrabox_config_root }}/gitea-runner'
+    state: directory
+    mode: '0700'
+- name: Create runner persistent state directory
+  ansible.builtin.file:
+    path: '{{ infrabox_storage_root }}/gitea-runner'
+    state: directory
+    mode: '0700'
+- name: Render runner-only network restrictions
+  ansible.builtin.template:
+    src: firewall.nft.j2
+    dest: '{{ infrabox_config_root }}/gitea-runner/firewall.nft'
+    mode: '0600'
+    validate: nft --check --file %s
+  register: gitea_runner_firewall
+- name: Install runner firewall unit
+  ansible.builtin.copy:
+    src: infrabox-runner-firewall.service
+    dest: /etc/systemd/system/infrabox-runner-firewall.service
+    mode: '0644'
+  register: gitea_runner_firewall_unit
+- name: Enable network restriction service before creating runner
+  ansible.builtin.systemd_service:
+    name: infrabox-runner-firewall.service
+    daemon_reload: '{{ gitea_runner_firewall_unit.changed }}'
+    enabled: true
+    state: '{{ "restarted" if gitea_runner_firewall.changed else "started" }}'
+- name: Create isolated runner network
+  ansible.builtin.include_role:
+    name: quadlet
+  vars:
+    quadlet_name: infrabox-runner
+    quadlet_type: network
+    quadlet_definition: |
+      [Network]
+      NetworkName=infrabox-runner
+      InterfaceName={{ gitea_runner_interface }}
+      Subnet={{ gitea_runner_subnet }}
+      Gateway={{ gitea_runner_gateway }}
+      [Install]
+      WantedBy=multi-user.target
+- name: Configure container-local shell execution
+  ansible.builtin.copy:
+    dest: '{{ infrabox_config_root }}/gitea-runner/config.yaml'
+    mode: '0644'
+    content: |
+      runner:
+        file: /data/.runner
+        capacity: 1
+        timeout: 1h
+        insecure: false
+        labels: ['infrabox-shell:host']
+        envs:
+          SSL_CERT_FILE: /run/infrabox-ca/root-ca.crt
+          GIT_SSL_CAINFO: /run/infrabox-ca/root-ca.crt
+      host:
+        workdir_parent: /data/workspaces
+      container:
+        require_docker: false
+      cache:
+        enabled: false
+      metrics:
+        enabled: true
+        addr: 127.0.0.1:9101
+  register: gitea_runner_config
+- name: Check existing runner registration
+  ansible.builtin.stat:
+    path: '{{ infrabox_storage_root }}/gitea-runner/.runner'
+  register: gitea_runner_registration
+- name: Generate registration token only for a new runner
+  ansible.builtin.command: podman exec --user 1000 gitea gitea --config /etc/gitea/app.ini actions generate-runner-token
+  register: gitea_runner_registration_token
+  when: not gitea_runner_registration.stat.exists
+  changed_when: false
+  no_log: true
+- name: Register isolated runner over verified HTTPS
+  ansible.builtin.command:
+    argv:
+      - podman
+      - run
+      - --rm
+      - --network=infrabox-runner
+      - --userns=auto:size=65536
+      - --cap-drop=all
+      - --security-opt=no-new-privileges
+      - --env=SSL_CERT_FILE=/run/infrabox-ca/root-ca.crt
+      - --env=GITEA_RUNNER_REGISTRATION_TOKEN
+      - '--volume={{ infrabox_storage_root }}/gitea-runner:/data:Z,U'
+      - '--volume={{ infrabox_config_root }}/gitea-runner/config.yaml:/config.yaml:ro,Z'
+      - '--volume={{ infrabox_root_ca_path }}:/run/infrabox-ca/root-ca.crt:ro,z'
+      - --workdir=/data
+      - --entrypoint=gitea-runner
+      - '{{ gitea_runner_image }}'
+      - --config=/config.yaml
+      - register
+      - --no-interactive
+      - '--instance=https://git.{{ infrabox_domain }}'
+      - '--name={{ inventory_hostname }}'
+      - --labels=infrabox-shell:host
+  environment:
+    GITEA_RUNNER_REGISTRATION_TOKEN: '{{ gitea_runner_registration_token.stdout | trim }}'
+  when: not gitea_runner_registration.stat.exists
+  changed_when: true
+  no_log: true
+- name: Define runner Quadlet
+  ansible.builtin.include_role:
+    name: quadlet
+    tasks_from: configure
+  vars:
+    quadlet_name: gitea-runner
+    quadlet_type: container
+    quadlet_definition: '{{ lookup("ansible.builtin.template", "gitea-runner.container.j2") }}'

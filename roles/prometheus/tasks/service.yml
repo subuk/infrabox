@@ -1,0 +1,9 @@
+---
+- name: Apply prometheus Quadlet
+  ansible.builtin.include_role:
+    name: quadlet
+    tasks_from: service
+  vars:
+    quadlet_name: prometheus
+- name: Apply prometheus configuration changes
+  ansible.builtin.meta: flush_handlers

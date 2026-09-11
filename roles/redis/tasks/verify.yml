@@ -1,0 +1,19 @@
+---
+- name: Verify authenticated Redis TLS PING
+  ansible.builtin.command:
+    argv: [podman, exec, --env, REDISCLI_AUTH, redis, redis-cli, --tls, --cacert, /run/infrabox-ca/root-ca.crt, --sni, 'redis.{{ infrabox_internal_domain }}', -h, 'redis.{{ infrabox_internal_domain }}', PING]
+  environment:
+    REDISCLI_AUTH: '{{ redis_password }}'
+  register: redis_ping
+  changed_when: false
+  failed_when: redis_ping.rc != 0 or redis_ping.stdout != 'PONG'
+  until: redis_ping.rc == 0 and redis_ping.stdout == 'PONG'
+  retries: 20
+  delay: 3
+  no_log: true
+- name: Verify unauthenticated Redis requests are rejected
+  ansible.builtin.command:
+    argv: [podman, exec, redis, redis-cli, --tls, --cacert, /run/infrabox-ca/root-ca.crt, -h, 'redis.{{ infrabox_internal_domain }}', PING]
+  register: redis_unauthenticated
+  changed_when: false
+  failed_when: "'NOAUTH' not in redis_unauthenticated.stdout"

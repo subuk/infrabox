@@ -1,0 +1,9 @@
+---
+- name: Deploy Gitea and NetBox
+  hosts: infrabox
+  become: true
+  roles:
+    - role: gitea
+      tags: [gitea]
+    - role: netbox
+      tags: [netbox]

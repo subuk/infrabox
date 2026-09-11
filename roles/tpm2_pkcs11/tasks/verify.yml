@@ -1,0 +1,18 @@
+---
+- name: Verify TPM device
+  ansible.builtin.import_tasks: prerequisite.yml
+- name: Verify RSA OAEP round trip through TPM
+  ansible.builtin.command:
+    argv:
+      - python3
+      - /etc/infrabox/tpm2-pkcs11/verify.py
+      - '{{ tpm2_pkcs11_library }}'
+      - '{{ tpm2_pkcs11_token_label }}'
+      - '{{ tpm2_pkcs11_key_label }}'
+      - '{{ tpm2_pkcs11_key_bits | string }}'
+    stdin: '{{ tpm2_pkcs11_user_pin }}'
+  environment:
+    TPM2_PKCS11_STORE: '{{ tpm2_pkcs11_store_dir }}'
+    TPM2_PKCS11_TCTI: 'device:{{ tpm2_pkcs11_device }}'
+  changed_when: false
+  no_log: true

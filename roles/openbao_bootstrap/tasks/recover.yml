@@ -1,0 +1,39 @@
+---
+- name: Inspect established Agent certificate registry
+  ansible.builtin.stat:
+    path: /etc/infrabox/openbao-agent/certificates.json
+  register: openbao_bootstrap_registry
+  tags: [configure]
+- name: Recover established installation
+  when: openbao_tls_enabled | bool and openbao_bootstrap_registry.stat.exists
+  tags: [configure]
+  block:
+    - name: Start existing OpenBao runtime for local management
+      ansible.builtin.systemd_service:
+        name: openbao.service
+        state: started
+    - name: Wait for initialized local API
+      ansible.builtin.uri:
+        url: http://localhost/v1/sys/health
+        unix_socket: /run/infrabox-openbao/api.sock
+      register: openbao_bootstrap_recovery_ready
+      retries: 20
+      delay: 3
+      until: openbao_bootstrap_recovery_ready.status == 200
+    - name: Install leaf recovery helper
+      ansible.builtin.copy:
+        src: recover.py
+        dest: /etc/infrabox/openbao-bootstrap/recover.py
+        mode: '0700'
+    - name: Replace only expired leaf certificates
+      ansible.builtin.command:
+        argv: [python3, /etc/infrabox/openbao-bootstrap/recover.py]
+        stdin: '{{ openbao_bootstrap_recovery_parameters | to_json }}'
+      vars:
+        openbao_bootstrap_recovery_parameters:
+          socket: /run/infrabox-openbao/api.sock
+          token: '{{ (lookup("ansible.builtin.file", playbook_dir ~ "/.secrets/" ~ inventory_hostname ~ "/openbao-init.json") | from_json).root_token }}'
+          ttl: '{{ openbao_bootstrap_server_certificate_ttl | default("336h") }}'
+      register: openbao_bootstrap_recovery
+      changed_when: openbao_bootstrap_recovery.rc == 0 and (openbao_bootstrap_recovery.stdout | from_json).changed
+      no_log: true

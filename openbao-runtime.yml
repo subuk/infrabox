@@ -1,0 +1,7 @@
+---
+- name: Deploy OpenBao runtime after TPM provisioning
+  hosts: infrabox
+  become: true
+  roles:
+    - role: openbao
+      tags: [openbao]

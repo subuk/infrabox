@@ -1,0 +1,29 @@
+---
+- name: Create component configuration directory
+  ansible.builtin.file:
+    path: '{{ infrabox_config_root }}/redis'
+    state: directory
+    mode: '0755'
+- name: Create persistent component data directory
+  ansible.builtin.file:
+    path: '{{ infrabox_storage_root }}/redis'
+    state: directory
+    owner: '{{ redis_uid }}'
+    group: '{{ redis_gid }}'
+    mode: '0700'
+- name: Render authenticated TLS-only Redis configuration
+  ansible.builtin.template:
+    src: redis.conf.j2
+    dest: '{{ infrabox_config_root }}/redis/redis.conf'
+    owner: '{{ redis_uid }}'
+    group: '{{ redis_gid }}'
+    mode: '0600'
+  no_log: true
+  notify: Restart redis
+- name: Define Redis Quadlet
+  ansible.builtin.include_role:
+    name: quadlet
+    tasks_from: configure
+  vars:
+    quadlet_name: redis
+    quadlet_definition: '{{ lookup("ansible.builtin.template", "redis.container.j2") }}'

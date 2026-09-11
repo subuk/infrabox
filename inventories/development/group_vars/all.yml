@@ -1,0 +1,17 @@
+---
+infrabox_domain: infrabox1.krglv.com
+infrabox_internal_domain: infrabox.internal
+infrabox_timezone: Europe/Berlin
+infrabox_storage_root: /srv/infrabox
+infrabox_config_root: /etc/infrabox
+infrabox_pki_root: /etc/infrabox/pki
+infrabox_root_ca_path: /etc/infrabox/pki/root-ca.crt
+openbao_tls_enabled: true
+openbao_agent_openbao_address: https://openbao.infrabox.internal:8200
+tpm2_pkcs11_store_dir: /var/lib/infrabox/tpm2-pkcs11
+tpm2_pkcs11_device: /dev/tpmrm0
+tpm2_pkcs11_token_label: InfraBox
+tpm2_pkcs11_key_label: openbao-unseal
+tpm2_pkcs11_key_bits: 3072
+tpm2_pkcs11_runtime_uid: 991
+tpm2_pkcs11_runtime_gid: 991

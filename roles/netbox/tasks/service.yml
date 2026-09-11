@@ -1,0 +1,22 @@
+---
+- name: Apply netbox Quadlet
+  ansible.builtin.include_role:
+    name: quadlet
+    tasks_from: service
+  vars:
+    quadlet_name: netbox
+- name: Apply netbox configuration changes
+  ansible.builtin.meta: flush_handlers
+- name: Wait for NetBox web readiness and migrations
+  ansible.builtin.uri:
+    url: http://127.0.0.1:8080/login/
+  register: netbox_ready
+  retries: 240
+  delay: 5
+  until: netbox_ready.status == 200
+- name: Deploy NetBox worker after web readiness
+  ansible.builtin.include_role:
+    name: quadlet
+  vars:
+    quadlet_name: netbox-worker
+    quadlet_definition: '{{ lookup("ansible.builtin.template", "netbox-worker.container.j2") }}'

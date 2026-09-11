@@ -1,0 +1,61 @@
+---
+- name: Require protected PIN inputs
+  ansible.builtin.assert:
+    that:
+      - tpm2_pkcs11_so_pin | default('') | length >= 16
+      - tpm2_pkcs11_user_pin | default('') | length >= 16
+  no_log: true
+- name: Create private PKCS11 store
+  ansible.builtin.file:
+    path: '{{ tpm2_pkcs11_store_dir }}'
+    state: directory
+    owner: '{{ tpm2_pkcs11_runtime_uid }}'
+    group: '{{ tpm2_pkcs11_runtime_gid }}'
+    mode: '0700'
+- name: Create component helper directory
+  ansible.builtin.file:
+    path: /etc/infrabox/tpm2-pkcs11
+    state: directory
+    mode: '0700'
+- name: Install TPM provisioning helper
+  ansible.builtin.copy:
+    src: provision.py
+    dest: /etc/infrabox/tpm2-pkcs11/provision.py
+    mode: '0700'
+- name: Provision and inspect TPM objects without replacing existing keys
+  ansible.builtin.command:
+    argv: [python3, /etc/infrabox/tpm2-pkcs11/provision.py]
+    stdin: '{{ tpm2_pkcs11_parameters | to_json }}'
+  vars:
+    tpm2_pkcs11_parameters:
+      store: '{{ tpm2_pkcs11_store_dir }}'
+      library: '{{ tpm2_pkcs11_library }}'
+      token: '{{ tpm2_pkcs11_token_label }}'
+      key: '{{ tpm2_pkcs11_key_label }}'
+      bits: '{{ tpm2_pkcs11_key_bits }}'
+      so_pin: '{{ tpm2_pkcs11_so_pin }}'
+      user_pin: '{{ tpm2_pkcs11_user_pin }}'
+      openbao_data: '{{ infrabox_storage_root }}/openbao'
+  environment:
+    TPM2TOOLS_TCTI: 'device:{{ tpm2_pkcs11_device }}'
+    TPM2_PKCS11_TCTI: 'device:{{ tpm2_pkcs11_device }}'
+  register: tpm2_pkcs11_provision
+  changed_when: tpm2_pkcs11_provision.rc == 0 and (tpm2_pkcs11_provision.stdout | from_json).changed
+  failed_when: false
+  no_log: true
+- name: Report sanitized TPM provisioning failure
+  ansible.builtin.fail:
+    msg: "{{ tpm2_pkcs11_provision.stderr_lines | last }}"
+  when: tpm2_pkcs11_provision.rc != 0
+- name: Permit dedicated OpenBao identity to use the TPM store
+  ansible.builtin.file:
+    path: '{{ tpm2_pkcs11_store_dir }}'
+    state: directory
+    owner: '{{ tpm2_pkcs11_runtime_uid }}'
+    group: '{{ tpm2_pkcs11_runtime_gid }}'
+    recurse: true
+- name: Install PKCS11 crypto verification helper
+  ansible.builtin.copy:
+    src: verify.py
+    dest: /etc/infrabox/tpm2-pkcs11/verify.py
+    mode: '0700'

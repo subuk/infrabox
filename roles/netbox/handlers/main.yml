@@ -1,0 +1,14 @@
+---
+- name: Restart netbox
+  ansible.builtin.systemd_service:
+    name: netbox.service
+    state: restarted
+  notify: Restart existing NetBox worker
+- name: Restart existing NetBox worker
+  ansible.builtin.shell: |
+    if systemctl is-active --quiet netbox-worker.service; then
+      systemctl restart netbox-worker.service
+      echo restarted
+    fi
+  register: netbox_worker_restart
+  changed_when: "'restarted' in netbox_worker_restart.stdout"

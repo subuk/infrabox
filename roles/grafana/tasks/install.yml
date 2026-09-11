@@ -1,0 +1,12 @@
+---
+- name: Inspect pinned image
+  ansible.builtin.command:
+    argv: [podman, image, exists, '{{ grafana_image }}']
+  changed_when: false
+  failed_when: grafana_image_exists.rc not in [0, 1]
+  register: grafana_image_exists
+- name: Pull pinned image when absent
+  ansible.builtin.command:
+    argv: [podman, pull, '{{ grafana_image }}']
+  changed_when: true
+  when: grafana_image_exists.rc != 0

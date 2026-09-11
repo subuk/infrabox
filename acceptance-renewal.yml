@@ -1,0 +1,22 @@
+---
+# Temporarily shortens leaf lifetime; always restores the production settings.
+- name: Exercise automated leaf renewal on the development appliance
+  hosts: infrabox
+  become: true
+  tasks:
+    - name: Run short-lifetime acceptance with guaranteed configuration restoration
+      block:
+        - name: Configure three-minute leaf certificates
+          ansible.builtin.include_role:
+            name: openbao_agent
+          vars:
+            openbao_agent_certificate_ttl: 180s
+        - name: Observe renewal and actual server certificate replacement
+          ansible.builtin.script: scripts/test-certificate-renewal.py
+          changed_when: false
+      always:
+        - name: Restore fourteen-day certificate configuration
+          ansible.builtin.include_role:
+            name: openbao_agent
+          vars:
+            openbao_agent_certificate_ttl: 336h

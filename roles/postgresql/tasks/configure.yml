@@ -1,0 +1,40 @@
+---
+- name: Create component configuration directory
+  ansible.builtin.file:
+    path: '{{ infrabox_config_root }}/postgresql'
+    state: directory
+    mode: '0755'
+- name: Create persistent component data directory
+  ansible.builtin.file:
+    path: '{{ infrabox_storage_root }}/postgresql'
+    state: directory
+    owner: '{{ postgresql_uid }}'
+    group: '{{ postgresql_gid }}'
+    mode: '0700'
+- name: Write protected database initialization password
+  ansible.builtin.copy:
+    content: '{{ postgresql_admin_password }}'
+    dest: '{{ infrabox_config_root }}/postgresql/admin-password'
+    owner: '{{ postgresql_uid }}'
+    group: '{{ postgresql_gid }}'
+    mode: '0600'
+  no_log: true
+- name: Render PostgreSQL configuration
+  ansible.builtin.template:
+    src: '{{ item }}.j2'
+    dest: '{{ infrabox_config_root }}/postgresql/{{ item }}'
+    mode: '0644'
+  loop: [postgresql.conf, pg_hba.conf]
+  notify: Restart postgresql
+- name: Install database reconciliation helper
+  ansible.builtin.copy:
+    src: databases.py
+    dest: '{{ infrabox_config_root }}/postgresql/databases.py'
+    mode: '0700'
+- name: Define PostgreSQL Quadlet
+  ansible.builtin.include_role:
+    name: quadlet
+    tasks_from: configure
+  vars:
+    quadlet_name: postgresql
+    quadlet_definition: '{{ lookup("ansible.builtin.template", "postgresql.container.j2") }}'

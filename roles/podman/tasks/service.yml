@@ -1,0 +1,14 @@
+---
+- name: Configure Podman API socket
+  ansible.builtin.systemd_service:
+    name: podman.socket
+    enabled: '{{ podman_api_enabled }}'
+    state: "{{ 'started' if podman_api_enabled else 'stopped' }}"
+- name: Reload generated units after changes
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when: podman_network_definition is defined and podman_network_definition.changed
+- name: Start generated network unit
+  ansible.builtin.systemd_service:
+    name: infrabox-network.service
+    state: started

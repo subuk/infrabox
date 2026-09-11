@@ -1,0 +1,3 @@
+{{ '{{' }} with secret "pki-server/issue/infrabox-server" "common_name={{ item.common_name }}" "alt_names={{ item.alt_names | default([]) | join(',') }}" "ttl={{ item.ttl | default(openbao_agent_certificate_ttl) }}" {{ '}}' }}
+{{ '{{' }} .Data | toJSON {{ '}}' }}
+{{ '{{' }} end {{ '}}' }}

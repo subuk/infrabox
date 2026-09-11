@@ -1,0 +1,13 @@
+---
+- name: install grafana
+  ansible.builtin.import_tasks: install.yml
+  tags: [install]
+- name: configure grafana
+  ansible.builtin.import_tasks: configure.yml
+  tags: [configure]
+- name: service grafana
+  ansible.builtin.import_tasks: service.yml
+  tags: [service]
+- name: verify grafana
+  ansible.builtin.import_tasks: verify.yml
+  tags: [verify]

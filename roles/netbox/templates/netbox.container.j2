@@ -1,0 +1,25 @@
+[Unit]
+Description=InfraBox NetBox
+After=postgresql.service redis.service
+Requires=postgresql.service
+Wants=redis.service
+[Container]
+Image={{ netbox_image }}
+ContainerName=netbox
+User={{ netbox_uid }}:0
+DropCapability=all
+NoNewPrivileges=true
+Network=infrabox.network
+NetworkAlias=netbox.{{ infrabox_internal_domain }}
+PublishPort=127.0.0.1:8080:8080
+EnvironmentFile={{ infrabox_config_root }}/netbox/netbox.env
+Volume={{ infrabox_config_root }}/netbox/configuration.py:/etc/netbox/config/configuration.py:ro,z
+Volume={{ infrabox_storage_root }}/netbox/media:/opt/netbox/netbox/media:z
+Volume={{ infrabox_storage_root }}/netbox/reports:/opt/netbox/netbox/reports:z
+Volume={{ infrabox_storage_root }}/netbox/scripts:/opt/netbox/netbox/scripts:z
+Volume={{ infrabox_root_ca_path }}:/run/infrabox-ca/root-ca.crt:ro,z
+[Service]
+Restart=on-failure
+TimeoutStartSec=600
+[Install]
+WantedBy=multi-user.target

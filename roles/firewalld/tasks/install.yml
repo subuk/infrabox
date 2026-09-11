@@ -1,0 +1,5 @@
+---
+- name: Install firewalld
+  ansible.builtin.dnf:
+    name: [firewalld, python3-firewall]
+    state: present

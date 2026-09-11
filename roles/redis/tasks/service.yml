@@ -1,0 +1,9 @@
+---
+- name: Apply generated service
+  ansible.builtin.include_role:
+    name: quadlet
+    tasks_from: service
+  vars:
+    quadlet_name: redis
+- name: Apply component configuration changes
+  ansible.builtin.meta: flush_handlers

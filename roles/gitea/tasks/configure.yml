@@ -1,0 +1,43 @@
+---
+- name: Create Gitea directories
+  ansible.builtin.file:
+    path: '{{ item }}'
+    state: directory
+    owner: '{{ gitea_uid }}'
+    group: '{{ gitea_uid }}'
+    mode: '0700'
+  loop:
+    - '{{ infrabox_config_root }}/gitea'
+    - '{{ infrabox_storage_root }}/gitea'
+- name: Preserve existing Gitea generated signing secrets
+  ansible.builtin.command:
+    argv:
+      - python3
+      - -c
+      - |
+        import configparser, json, pathlib
+        path = pathlib.Path('/etc/infrabox/gitea/app.ini')
+        config = configparser.ConfigParser(interpolation=None)
+        if path.exists():
+            config.read_string('[global]\n' + path.read_text())
+        print(json.dumps({key: config.get(section, key, fallback='')
+                          for section, key in [('server', 'LFS_JWT_SECRET'), ('oauth2', 'JWT_SECRET')]}))
+  changed_when: false
+  register: gitea_signing_secrets
+  no_log: true
+- name: Render Gitea configuration
+  ansible.builtin.template:
+    src: app.ini.j2
+    dest: '{{ infrabox_config_root }}/gitea/app.ini'
+    owner: '{{ gitea_uid }}'
+    group: '{{ gitea_uid }}'
+    mode: '0600'
+  no_log: true
+  notify: Restart gitea
+- name: Define Gitea Quadlet
+  ansible.builtin.include_role:
+    name: quadlet
+    tasks_from: configure
+  vars:
+    quadlet_name: gitea
+    quadlet_definition: '{{ lookup("ansible.builtin.template", "gitea.container.j2") }}'

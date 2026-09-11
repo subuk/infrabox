@@ -1,0 +1,7 @@
+---
+- name: Configure host CA trust
+  ansible.builtin.import_tasks: configure.yml
+  tags: [configure]
+- name: Verify host CA trust
+  ansible.builtin.import_tasks: verify.yml
+  tags: [verify]

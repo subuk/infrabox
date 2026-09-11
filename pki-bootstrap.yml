@@ -1,0 +1,7 @@
+---
+- name: Initialize OpenBao and create PKI
+  hosts: infrabox
+  become: true
+  roles:
+    - role: openbao_bootstrap
+      tags: [openbao_bootstrap]

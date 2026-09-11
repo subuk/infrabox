@@ -1,0 +1,35 @@
+[Unit]
+Description=InfraBox OpenBao TPM-backed secrets service
+After=network-online.target systemd-tmpfiles-setup.service
+Wants=network-online.target
+[Container]
+Image={{ openbao_image }}
+ContainerName=openbao
+User={{ openbao_uid }}:{{ openbao_gid }}
+GroupAdd={{ openbao_tpm_device.stat.gid }}
+AddDevice={{ tpm2_pkcs11_device }}
+SecurityLabelType=infrabox_openbao.process
+DropCapability=all
+NoNewPrivileges=true
+{% if openbao_tls_enabled %}
+Network=infrabox.network
+NetworkAlias=openbao.{{ infrabox_internal_domain }}
+PublishPort=127.0.0.1:8200:8200
+{% else %}
+Network=host
+{% endif %}
+EnvironmentFile=/etc/infrabox/openbao/hsm.env
+Environment=TPM2_PKCS11_STORE={{ tpm2_pkcs11_store_dir }}
+Environment=TPM2_PKCS11_TCTI=device:{{ tpm2_pkcs11_device }}
+Volume={{ tpm2_pkcs11_store_dir }}:{{ tpm2_pkcs11_store_dir }}:Z
+Volume={{ infrabox_storage_root }}/openbao:/var/lib/openbao:Z
+Volume=/etc/infrabox/openbao/config.hcl:/etc/openbao/config.hcl:ro,Z
+Volume={{ infrabox_pki_root }}/openbao:/etc/openbao/pki:ro,Z
+Volume=/run/infrabox-openbao:/run/infrabox-openbao:Z
+Exec=server -config=/etc/openbao/config.hcl
+[Service]
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=180
+[Install]
+WantedBy=multi-user.target

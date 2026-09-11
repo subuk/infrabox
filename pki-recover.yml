@@ -1,0 +1,10 @@
+---
+- name: Recover expired leaf certificates before final-state configuration
+  hosts: infrabox
+  become: true
+  tasks:
+    - name: Repair expired leaves through local management
+      ansible.builtin.include_role:
+        name: openbao_bootstrap
+        tasks_from: recover
+      tags: [configure]
