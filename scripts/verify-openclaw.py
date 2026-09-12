@@ -44,9 +44,14 @@ for mount in container['Mounts']:
 for name in ['openclaw.json', 'openclaw.env', 'secrets/vault-token']:
     require(Path(config_dir, name).stat().st_mode & 0o077 == 0, 'world/group-readable configuration or secret')
 require({'exec', 'process', 'browser', 'nodes', 'terminal'} <= set(configuration['tools']['deny']), 'execution tool denials missing')
+web_search_enabled = configuration['tools'].get('web', {}).get('search', {}).get('enabled', False)
+expected_additions = (['read'] if netbox_enabled else []) + (['infrabox_scan_subnet'] if scanner_enabled else []) + (['web_search'] if web_search_enabled else [])
+require(configuration['tools'].get('alsoAllow', []) == expected_additions, 'unexpected tool profile additions')
+if web_search_enabled:
+    require('provider' not in configuration['tools']['web']['search'], 'managed provider overrides native OpenAI search')
+    require('openai' in configuration['plugins']['allow'] and configuration['plugins']['entries']['openai']['enabled'], 'OpenAI provider plugin disabled')
 if netbox_enabled:
     require(configuration['tools']['profile'] == 'messaging', 'unexpected MCP tool profile')
-    require(configuration['tools']['alsoAllow'] == ['read'] + (['infrabox_scan_subnet'] if scanner_enabled else []), 'unexpected tool profile additions')
     require(configuration['tools']['fs']['workspaceOnly'] is True, 'file reads escape workspace')
     require({'write', 'edit', 'apply_patch', 'sessions_spawn', 'subagents', 'secrets'} <= set(configuration['tools']['deny']), 'unexpected mutation/delegation tools')
     token = Path(config_dir, 'secrets/netbox-token').read_text().strip()

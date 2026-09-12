@@ -273,3 +273,39 @@ recorded in `subnet-scanner-first.log` and `subnet-scanner-repair.log`.
 No LAN scan, model-driven conversation, inventory write/delete fixture, expiry
 test, or reboot acceptance was run for this extension. End-to-end conversational
 approval and scanning the operator's actual network remain operator-owned.
+
+## OpenAI web search — deployed (2026-09-12)
+
+Enabled OpenAI's native hosted `web_search` on the same authorized development
+appliance using `inventories/development/hosts.yml`. It is available for general
+questions and onboarding when using the configured direct OpenAI Responses
+models. No separate search provider or credential was added. The existing four
+model definitions and Vault SecretRefs were preserved from the live configuration
+into protected controller inputs so future Ansible runs retain them.
+
+`openclaw_web_search_enabled` controls search independently of NetBox and subnet
+scanning. Disabling search preserves an explicitly configured OpenAI chat
+provider. The managed onboarding skill now permits vendor/model research,
+prefers manufacturer sources with citations, separates published specifications
+from actual installed hardware, excludes private inventory details from queries,
+and retains confirmation before NetBox writes.
+
+Completed checks:
+
+- Ansible syntax checks and all 28 Python tests passed. The new configuration
+  test covers search, NetBox, scanner, and OpenAI-provider combinations. Skill
+  validation and JavaScript syntax checks passed.
+- The installed OpenClaw native wrapper and effective tool policy produced
+  hosted-search payloads for all four configured OpenAI models. Offline checks
+  verified explicit opt-in through the tool profile, disabled/denied search,
+  proxy exclusion, and preservation of unrelated tools.
+- Deployment: `ok=49 changed=3 failed=0`. Complete OpenClaw deployment rerun:
+  `ok=99 changed=0 failed=0`, including native search checks, Gateway readiness,
+  SecretRef audit, isolation, scanner verification, and real NetBox MCP reads.
+- Public Gateway HTTPS health passed using the exported RootCA.
+
+Evidence is in `artifacts/infrabox1/web-search-deploy.log`,
+`web-search-idempotence.log`, and `web-search-https-health.json`. Verification
+issued no paid model or hosted-search request and performed no conversational
+acceptance or NetBox inventory write fixture. A real search and its answer
+quality remain operator checks. See [web-search operation](README.md#web-search-through-openai).

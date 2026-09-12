@@ -459,6 +459,35 @@ and rejected invalid targets without sending scan probes or invoking a model.
 Local scanner tests also include `node --test tests/test_subnet_plugin.mjs`.
 Conversational approval and a real network scan remain operator checks.
 
+### Web search through OpenAI
+
+`openclaw_web_search_enabled` defaults to `true` and adds `web_search` to the
+allowed tools independently of NetBox onboarding and subnet scanning. Select
+one of your configured direct OpenAI Responses models (`provider: openai`,
+`api: openai-responses`, and the official OpenAI API endpoint). OpenClaw then
+uses OpenAI's hosted search with that model's existing OpenBao SecretRef.
+Model and hosted-search usage is charged through the same OpenAI account.
+
+The configuration deliberately leaves `tools.web.search.provider` unset, as
+required for the [native OpenAI search path](https://docs.openclaw.ai/tools/web#auto-detection).
+There is no separate search API key or managed search provider. Search through
+other model providers or OpenAI-compatible proxies needs separate configuration.
+Set `openclaw_web_search_enabled: false` to disable search explicitly.
+
+Use search for general questions, current information, or product research.
+For NetBox onboarding, the managed skill prefers manufacturer product pages and
+datasheets, cites sources, distinguishes public specifications from the actual
+device's configuration, and keeps private inventory details out of queries.
+Researched fields remain part of a separately confirmed NetBox write proposal.
+Browser automation and shell tools remain disabled.
+
+Keep your `openclaw_model_providers` definitions in controller inputs or the
+selected inventory using SecretRefs, as described below. Changes made only to
+the appliance's generated JSON can be replaced by Ansible. Apply `agent.yml`
+with the selected inventory and protected inputs. Verification exercises the
+pinned OpenClaw native search wrapper and effective tool policy without sending
+a model/search request; a real conversational search remains an operator check.
+
 ### Optional model providers
 
 The Gateway starts without provider credentials. InfraBox does not provision

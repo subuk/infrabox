@@ -6,6 +6,11 @@ network-scanning exclusions and absolute prohibition of discovery claims only
 for observations actually returned by that tool. Separate NetBox write
 confirmation and all other restrictions below remain in effect.
 
+The later [OpenAI web-search extension](README.md#web-search-through-openai)
+also permits public vendor/model research with source citations. Published
+specifications do not establish a particular device's identity or installed
+configuration; sourced fields still require a reviewed NetBox write proposal.
+
 ## 1. Objective
 
 Implement the first user-facing InfraBox infrastructure workflow:

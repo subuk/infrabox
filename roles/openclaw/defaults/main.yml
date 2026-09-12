@@ -22,6 +22,8 @@ openclaw_controller_dir: '{{ playbook_dir }}/.secrets/{{ inventory_hostname }}'
 openclaw_openbao_socket: /run/infrabox-openbao/api.sock
 # Operator-supplied provider definitions must contain SecretRefs, never API keys.
 openclaw_model_providers: {}
+# Native hosted search on direct OpenAI Responses models; reuse their SecretRef.
+openclaw_web_search_enabled: true
 openclaw_netbox_enabled: true
 openclaw_subnet_scan_enabled: true
 openclaw_scanner_image: 'localhost/infrabox-scanner:nmap-7.93-{{ openclaw_image_digest.split(":")[-1][:12] }}'

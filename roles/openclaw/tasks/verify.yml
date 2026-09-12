@@ -29,6 +29,12 @@
     argv: [podman, exec, openclaw, node, openclaw.mjs, secrets, audit, --check, --allow-exec, --json]
   changed_when: false
   no_log: true
+- name: Verify native OpenAI web search payload and tool policy without inference
+  ansible.builtin.command:
+    argv: [podman, exec, -i, openclaw, node, --input-type=module, '-']
+    stdin: '{{ lookup("ansible.builtin.file", playbook_dir ~ "/scripts/verify-openclaw-web-search.mjs") }}'
+  changed_when: false
+  when: openclaw_web_search_enabled | bool
 - name: Verify bounded scanner isolation and transport without scanning
   ansible.builtin.script:
     cmd: scripts/verify-subnet-scanner.py
