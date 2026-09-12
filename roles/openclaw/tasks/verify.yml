@@ -29,6 +29,11 @@
     argv: [podman, exec, openclaw, node, openclaw.mjs, secrets, audit, --check, --allow-exec, --json]
   changed_when: false
   no_log: true
+- name: Verify bounded scanner isolation and transport without scanning
+  ansible.builtin.script:
+    cmd: scripts/verify-subnet-scanner.py
+  changed_when: false
+  when: openclaw_subnet_scan_enabled | bool
 - name: Verify OpenBao and NetBox credential identity without changing inventory
   ansible.builtin.include_tasks: netbox-manage.yml
   vars:

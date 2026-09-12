@@ -1,0 +1,6 @@
+{
+  "name": "@infrabox/subnet-scan",
+  "version": "1.0.0",
+  "type": "module",
+  "openclaw": {"extensions": ["./index.mjs"], "compat": {"minGatewayVersion": "2026.9.4"}}
+}

@@ -213,3 +213,63 @@ application may log that it cannot write an adjacent last-known-good backup.
 Token replacement leaves a persistent restart requirement until Gateway
 verification succeeds, so an interrupted run can resume safely. Historical MVP
 results above predate this integration.
+
+## OpenClaw subnet scanning — deployed (2026-09-12)
+
+Implemented and deployed on the existing authorized development appliance,
+`infrabox1` at `192.168.32.206`, using `inventories/development/hosts.yml` and
+its preserved controller inputs. SSH access worked with host-key checking.
+This result does not complete the older conversational or reboot acceptance
+work described above.
+
+`infrabox_scan_subnet` accepts one IPv4 CIDR from /24 through /32, without an
+address allowlist. Its native per-call approval names the subnet, explains
+active probes and possible disruption/alerts, and requires confirmation that
+this is the user's own local network. It reports responsive IPs, selected open
+TCP ports, and explicitly heuristic Nmap OS matches. The managed onboarding
+skill retains separate confirmation for NetBox writes.
+
+The Gateway retains UID 1000, no Linux capabilities, and its execution-tool
+restrictions. Nmap runs in a separate container with only CAP_NET_RAW, its own
+bridge, a private Unix socket, fixed arguments, resource limits, and a hard
+three-minute deadline. Source images and added Debian packages are pinned.
+See the [scanner contract](InfraBox%20%E2%80%94%20OpenClaw%20Subnet%20Scanning%20Implementation%20Plan.md)
+for exact behavior and limits.
+
+Completed checks:
+
+- Local Ansible syntax checks, 27 Python unit tests, two Node tests, and Python
+  compilation passed. Tests cover target size/canonical form, injection,
+  concurrency, process timeout cleanup, OS parsing, and approval-hook requests.
+- The real Nmap command discovered a temporary TCP listener on `127.0.0.1/32`
+  and produced heuristic OS matches inside a disposable `--network=none`
+  container. Only loopback traffic was used; no LAN address was scanned.
+- Native plugin runtime inspection found the optional tool and
+  `before_tool_call` approval hook loaded without diagnostics. Component checks
+  passed for worker isolation, socket access, rejected invalid targets, Gateway
+  readiness, scoped credentials, TLS trust, and actual NetBox MCP reads.
+- A worker restart retained the Gateway container identity and health, and
+  reconnected through the shared socket with SELinux enforcing.
+- Final configuration application: `ok=48 changed=2 failed=0`. Complete
+  deployment rerun: `ok=98 changed=0 failed=0`.
+- Full appliance read-only verification: `ok=75 changed=0 failed=0`, including
+  application health, public HTTPS, credential/TLS contracts, scanner checks,
+  and runner isolation.
+
+The first deployment failed during worker restart because systemd could not
+manage the Podman-relabeled runtime directory. The owning role now uses the
+repository's tmpfiles pattern and orders worker updates before Gateway startup.
+The Gateway uses a Wants dependency so worker restarts do not stop it. A stale
+startup lock after an interrupted startup expired normally; subsequent readiness
+and verification succeeded. Failed runs remain labeled as failed evidence.
+
+Evidence under `artifacts/infrabox1/`: `subnet-scanner-local-tests.log`,
+`subnet-scanner-loopback.log`, `subnet-scanner-plugin-isolated.json`,
+`subnet-scanner-restart.log`, `subnet-scanner-final-config.log`, and
+`subnet-scanner-idempotence.log`; full verification is in
+`subnet-scanner-verify.log`. The initial failure and successful repair are
+recorded in `subnet-scanner-first.log` and `subnet-scanner-repair.log`.
+
+No LAN scan, model-driven conversation, inventory write/delete fixture, expiry
+test, or reboot acceptance was run for this extension. End-to-end conversational
+approval and scanning the operator's actual network remain operator-owned.

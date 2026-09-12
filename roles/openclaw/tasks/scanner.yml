@@ -1,0 +1,90 @@
+---
+- name: Require the scanner's pinned amd64 base
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.architecture == 'x86_64'
+      - openclaw_image_digest is match('^sha256:[a-f0-9]{64}$')
+  tags: [install]
+- name: Create scanner build directories
+  ansible.builtin.file:
+    path: '{{ infrabox_config_root }}/scanner-image/debs'
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+  tags: [install]
+- name: Download checksum-locked Nmap and additional runtime libraries
+  ansible.builtin.get_url:
+    url: 'https://deb.debian.org/debian/{{ item.Filename }}'
+    dest: '{{ infrabox_config_root }}/scanner-image/debs/{{ item.Filename | basename }}'
+    checksum: 'sha256:{{ item.SHA256 }}'
+    mode: '0600'
+  loop: '{{ lookup("ansible.builtin.file", "subnet-scan/packages.json") | from_json }}'
+  loop_control:
+    label: '{{ item.Package }} {{ item.Version }}'
+  register: openclaw_scanner_packages
+  tags: [install]
+- name: Copy bounded scanner worker
+  ansible.builtin.copy:
+    src: subnet-scan/scanner.py
+    dest: '{{ infrabox_config_root }}/scanner-image/scanner.py'
+    mode: '0600'
+  register: openclaw_scanner_worker
+  tags: [install]
+- name: Render scanner build definition
+  ansible.builtin.template:
+    src: scanner.Containerfile.j2
+    dest: '{{ infrabox_config_root }}/scanner-image/Containerfile'
+    mode: '0600'
+  register: openclaw_scanner_build
+  tags: [install]
+- name: Inspect scanner image
+  ansible.builtin.command:
+    argv: [podman, image, exists, '{{ openclaw_scanner_image }}']
+  register: openclaw_scanner_exists
+  changed_when: false
+  failed_when: openclaw_scanner_exists.rc not in [0, 1]
+  tags: [install]
+- name: Build scanner without network access
+  ansible.builtin.command:
+    argv: [podman, build, --network=none, --pull=never, --tag, '{{ openclaw_scanner_image }}', '{{ infrabox_config_root }}/scanner-image']
+  when: openclaw_scanner_packages.changed or openclaw_scanner_worker.changed or openclaw_scanner_build.changed or openclaw_scanner_exists.rc != 0
+  changed_when: true
+  register: openclaw_scanner_image_build
+  tags: [install]
+- name: Create scanner socket directory without replacing it on restart
+  ansible.builtin.file:
+    path: /run/infrabox-scanner
+    state: directory
+    owner: root
+    group: '1000'
+    mode: '0750'
+  tags: [configure]
+- name: Recreate scanner socket directory at boot
+  ansible.builtin.copy:
+    dest: /etc/tmpfiles.d/infrabox-scanner.conf
+    mode: '0644'
+    content: |
+      d /run/infrabox-scanner 0750 root 1000 -
+  tags: [configure]
+- name: Configure isolated scanner network using shared Quadlet role
+  ansible.builtin.include_role:
+    name: quadlet
+  vars:
+    quadlet_name: infrabox-scanner
+    quadlet_type: network
+    quadlet_definition: |
+      [Network]
+      NetworkName=infrabox-scanner
+      Driver=bridge
+      DisableDNS=true
+  tags: [configure, service]
+- name: Configure scanner using shared Quadlet role
+  ansible.builtin.include_role:
+    name: quadlet
+  vars:
+    quadlet_name: infrabox-scanner
+    quadlet_type: container
+    quadlet_state: '{{ "restarted" if openclaw_scanner_image_build.changed | default(false) else "started" }}'
+    quadlet_definition: '{{ lookup("ansible.builtin.template", "scanner.container.j2") }}'
+  tags: [configure, service]

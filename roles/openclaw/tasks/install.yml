@@ -71,6 +71,25 @@
     - {src: verify-netbox-mcp.mjs, dest: verify-netbox-mcp.mjs}
   register: openclaw_mcp_build_inputs
   when: openclaw_netbox_enabled | bool
+- name: Copy managed subnet scanner plugin into the image build context
+  ansible.builtin.copy:
+    src: 'subnet-scan/{{ item }}'
+    dest: '{{ infrabox_config_root }}/openclaw-image/{{ item }}'
+    owner: root
+    group: root
+    mode: '0644'
+  loop: [index.mjs, openclaw.plugin.json]
+  register: openclaw_scanner_plugin_inputs
+  when: openclaw_subnet_scan_enabled | bool
+- name: Copy scanner plugin package metadata
+  ansible.builtin.copy:
+    src: subnet-scan/package.json
+    dest: '{{ infrabox_config_root }}/openclaw-image/scanner-package.json'
+    owner: root
+    group: root
+    mode: '0644'
+  register: openclaw_scanner_plugin_package
+  when: openclaw_subnet_scan_enabled | bool
 - name: Define pinned OpenClaw runtime image
   ansible.builtin.template:
     src: Containerfile.j2
@@ -95,6 +114,6 @@
       - --tag
       - '{{ openclaw_runtime_image }}'
       - '{{ infrabox_config_root }}/openclaw-image'
-  when: openclaw_build_definition.changed or openclaw_mcp_build_inputs.changed | default(false) or openclaw_runtime_exists.rc != 0
+  when: openclaw_build_definition.changed or openclaw_mcp_build_inputs.changed | default(false) or openclaw_scanner_plugin_inputs.changed | default(false) or openclaw_scanner_plugin_package.changed | default(false) or openclaw_runtime_exists.rc != 0
   changed_when: true
   notify: Restart openclaw

@@ -32,18 +32,21 @@ require(ports[str(port) + '/tcp'] == [{'HostIp': '127.0.0.1', 'HostPort': str(po
 allowed = {config_dir + '/openclaw.json', config_dir + '/secrets', storage_dir + '/state', storage_dir + '/workspace', ca_path}
 configuration = json.loads(Path(config_dir, 'openclaw.json').read_text())
 netbox_enabled = 'netbox' in configuration.get('mcp', {}).get('servers', {})
+scanner_enabled = configuration['plugins']['entries'].get('infrabox-subnet-scan', {}).get('enabled', False)
+if scanner_enabled:
+    allowed.add('/run/infrabox-scanner')
 if netbox_enabled:
     allowed.add(config_dir + '/skills/netbox-onboarding')
 require({m['Source'] for m in container['Mounts']} == allowed, 'unexpected container mount')
 for mount in container['Mounts']:
-    if mount['Source'] in {config_dir + '/openclaw.json', config_dir + '/secrets', ca_path, config_dir + '/skills/netbox-onboarding'}:
+    if mount['Source'] in {config_dir + '/openclaw.json', config_dir + '/secrets', ca_path, config_dir + '/skills/netbox-onboarding', '/run/infrabox-scanner'}:
         require(not mount['RW'], 'credential/configuration/CA mount is writable')
 for name in ['openclaw.json', 'openclaw.env', 'secrets/vault-token']:
     require(Path(config_dir, name).stat().st_mode & 0o077 == 0, 'world/group-readable configuration or secret')
 require({'exec', 'process', 'browser', 'nodes', 'terminal'} <= set(configuration['tools']['deny']), 'execution tool denials missing')
 if netbox_enabled:
     require(configuration['tools']['profile'] == 'messaging', 'unexpected MCP tool profile')
-    require(configuration['tools']['alsoAllow'] == ['read'], 'unexpected tool profile additions')
+    require(configuration['tools']['alsoAllow'] == ['read'] + (['infrabox_scan_subnet'] if scanner_enabled else []), 'unexpected tool profile additions')
     require(configuration['tools']['fs']['workspaceOnly'] is True, 'file reads escape workspace')
     require({'write', 'edit', 'apply_patch', 'sessions_spawn', 'subagents', 'secrets'} <= set(configuration['tools']['deny']), 'unexpected mutation/delegation tools')
     token = Path(config_dir, 'secrets/netbox-token').read_text().strip()

@@ -1,0 +1,20 @@
+---
+- name: Inspect managed scanner unit definition
+  ansible.builtin.stat:
+    path: /etc/containers/systemd/infrabox-scanner.container
+  register: openclaw_scanner_unit
+- name: Stop disabled scanner
+  ansible.builtin.systemd_service:
+    name: infrabox-scanner.service
+    state: stopped
+    daemon_reload: true
+  when: openclaw_scanner_unit.stat.exists
+- name: Remove disabled scanner Quadlet definition
+  ansible.builtin.file:
+    path: /etc/containers/systemd/infrabox-scanner.container
+    state: absent
+  register: openclaw_scanner_disabled_unit
+- name: Regenerate units after disabling scanner
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when: openclaw_scanner_disabled_unit.changed

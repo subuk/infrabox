@@ -85,6 +85,10 @@ OpenClaw runs as a Podman container managed by Quadlet.
 
 # 3. Scope
 
+The later [subnet-scanning extension](InfraBox%20%E2%80%94%20OpenClaw%20Subnet%20Scanning%20Implementation%20Plan.md)
+authorizes one managed native tool plugin and an isolated Nmap worker. This is
+the specific exception to the original custom-plugin exclusion below.
+
 IN scope:
 
 ```text

@@ -1,0 +1,10 @@
+{
+  "id": "infrabox-subnet-scan",
+  "name": "InfraBox subnet scanner",
+  "description": "Approved, bounded IPv4 discovery using an isolated Nmap worker",
+  "categories": ["tools"],
+  "contracts": {"tools": ["infrabox_scan_subnet"]},
+  "activation": {"onStartup": true},
+  "toolMetadata": {"infrabox_scan_subnet": {"optional": true}},
+  "configSchema": {"type": "object", "additionalProperties": false, "properties": {}}
+}

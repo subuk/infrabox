@@ -1,5 +1,11 @@
 # InfraBox — OpenClaw ↔ NetBox Onboarding Implementation Plan
 
+The subsequent [subnet-scanning extension](InfraBox%20%E2%80%94%20OpenClaw%20Subnet%20Scanning%20Implementation%20Plan.md)
+adds approved, bounded Nmap observations. Its contract supersedes this plan's
+network-scanning exclusions and absolute prohibition of discovery claims only
+for observations actually returned by that tool. Separate NetBox write
+confirmation and all other restrictions below remain in effect.
+
 ## 1. Objective
 
 Implement the first user-facing InfraBox infrastructure workflow:

@@ -1,0 +1,56 @@
+[
+  {
+    "Package": "libdbus-1-3",
+    "Version": "1.14.10-1~deb12u1",
+    "Filename": "pool/main/d/dbus/libdbus-1-3_1.14.10-1~deb12u1_amd64.deb",
+    "SHA256": "18ee0ce5fab9f7b671e87da1e9fa18660e36e04a3402f24bdb8635e0ba1d35f6"
+  },
+  {
+    "Package": "libblas3",
+    "Version": "3.11.0-2",
+    "Filename": "pool/main/l/lapack/libblas3_3.11.0-2_amd64.deb",
+    "SHA256": "9aae8058b8d02b800bdafc5b340614df1442a2d2abbc2d351947c0fdd67aa08a"
+  },
+  {
+    "Package": "liblinear4",
+    "Version": "2.3.0+dfsg-5",
+    "Filename": "pool/main/libl/liblinear/liblinear4_2.3.0+dfsg-5_amd64.deb",
+    "SHA256": "0815a47bc0c99a80fbaf605dd3405d3c58721f4f8d96db098e063c892936f279"
+  },
+  {
+    "Package": "libpcap0.8",
+    "Version": "1.10.3-1",
+    "Filename": "pool/main/libp/libpcap/libpcap0.8_1.10.3-1_amd64.deb",
+    "SHA256": "856014904c4d7ec9a9ba864c546d91c059b9bf00c7c89eda6fd0a16045f8faac"
+  },
+  {
+    "Package": "lua-lpeg",
+    "Version": "1.0.2-2",
+    "Filename": "pool/main/l/lua-lpeg/lua-lpeg_1.0.2-2_amd64.deb",
+    "SHA256": "429524c005adaa110a6381b77469b7c0047fe085e86929af3b2406d48e41d907"
+  },
+  {
+    "Package": "liblua5.3-0",
+    "Version": "5.3.6-2",
+    "Filename": "pool/main/l/lua5.3/liblua5.3-0_5.3.6-2_amd64.deb",
+    "SHA256": "576ad8ef2e9f6ad21f29f0c90dac17448deefee8f3912877c2a0911b77e5d3ca"
+  },
+  {
+    "Package": "nmap",
+    "Version": "7.93+dfsg1-1",
+    "Filename": "pool/main/n/nmap/nmap_7.93+dfsg1-1_amd64.deb",
+    "SHA256": "1ac65a0a1038ffa8de7ee13a146c4cbb9dac3180c7faef703f3efb3adad098b2"
+  },
+  {
+    "Package": "nmap-common",
+    "Version": "7.93+dfsg1-1",
+    "Filename": "pool/main/n/nmap/nmap-common_7.93+dfsg1-1_all.deb",
+    "SHA256": "81273be68b5857e570cc929f95a6261a61ab7c6a534191fcf5e7a9624d745b68"
+  },
+  {
+    "Package": "libpcre3",
+    "Version": "2:8.39-15",
+    "Filename": "pool/main/p/pcre3/libpcre3_8.39-15_amd64.deb",
+    "SHA256": "993ea623ce5b42d67f653f2faaa7ef15e7c9d72bfcb93e22a1eaff7aa3532303"
+  }
+]

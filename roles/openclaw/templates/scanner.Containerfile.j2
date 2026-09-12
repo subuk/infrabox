@@ -1,0 +1,7 @@
+# Reuse the existing pinned Debian/Python base; install only checksum-locked additions.
+FROM {{ openclaw_image }}
+USER root
+COPY debs/ /tmp/scanner-debs/
+RUN dpkg -i /tmp/scanner-debs/*.deb && rm -rf /tmp/scanner-debs
+COPY scanner.py /opt/infrabox/scanner.py
+ENTRYPOINT ["/usr/bin/python3", "-B", "/opt/infrabox/scanner.py"]

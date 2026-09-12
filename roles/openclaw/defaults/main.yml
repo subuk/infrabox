@@ -23,6 +23,8 @@ openclaw_openbao_socket: /run/infrabox-openbao/api.sock
 # Operator-supplied provider definitions must contain SecretRefs, never API keys.
 openclaw_model_providers: {}
 openclaw_netbox_enabled: true
+openclaw_subnet_scan_enabled: true
+openclaw_scanner_image: 'localhost/infrabox-scanner:nmap-7.93-{{ openclaw_image_digest.split(":")[-1][:12] }}'
 openclaw_netbox_url: 'https://netbox.{{ infrabox_domain }}'
 openclaw_netbox_mcp_version: '0.2.0'
 openclaw_netbox_token_file: '{{ openclaw_config_dir }}/secrets/netbox-token'

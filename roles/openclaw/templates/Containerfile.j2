@@ -9,3 +9,7 @@ COPY verify-netbox-mcp.mjs /opt/infrabox/verify-netbox-mcp.mjs
 RUN chmod 0755 /usr/local/bin/infrabox-netbox-mcp
 {% endif %}
 USER 1000:1000
+{% if openclaw_subnet_scan_enabled | bool %}
+COPY index.mjs openclaw.plugin.json /opt/infrabox/plugins/subnet-scan/
+COPY scanner-package.json /opt/infrabox/plugins/subnet-scan/package.json
+{% endif %}

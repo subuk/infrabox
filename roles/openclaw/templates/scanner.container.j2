@@ -1,0 +1,25 @@
+[Unit]
+Description=InfraBox bounded subnet scanner
+After=network-online.target systemd-tmpfiles-setup.service
+Wants=network-online.target
+[Container]
+Image={{ openclaw_scanner_image }}
+ContainerName=infrabox-scanner
+User=0:1000
+DropCapability=all
+AddCapability=NET_RAW
+NoNewPrivileges=true
+ReadOnly=true
+Network=infrabox-scanner.network
+Volume=/run/infrabox-scanner:/run/infrabox-scanner:rw,z
+Tmpfs=/tmp:rw,noexec,nosuid,nodev,size=16m
+PodmanArgs=--memory=256m --cpus=1 --pids-limit=32
+[Service]
+Restart=on-failure
+TimeoutStartSec=300
+RestartSec=5
+MemoryMax=256M
+CPUQuota=100%
+TasksMax=32
+[Install]
+WantedBy=multi-user.target

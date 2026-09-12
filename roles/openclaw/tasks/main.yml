@@ -6,6 +6,15 @@
 - name: Install OpenClaw
   ansible.builtin.import_tasks: install.yml
   tags: [install]
+- name: Deploy isolated subnet scanner
+  # Configure Gateway last so its shared Quadlet change register is retained.
+  ansible.builtin.import_tasks: scanner.yml
+  when: openclaw_subnet_scan_enabled | bool
+  tags: [subnet_scan]
+- name: Disable scanner when requested
+  ansible.builtin.import_tasks: scanner-disable.yml
+  when: not (openclaw_subnet_scan_enabled | bool)
+  tags: [subnet_scan, configure, service]
 - name: Configure OpenClaw
   ansible.builtin.import_tasks: configure.yml
   tags: [configure]

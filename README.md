@@ -424,6 +424,41 @@ session, checks the five tools, reads NetBox with verified TLS, and checks
 credentials, effective object permissions, and isolation. It makes no model calls,
 creates no temporary inventory fixtures, and performs no live write/delete probes.
 
+### Optional subnet scanning
+
+`openclaw_subnet_scan_enabled` defaults to `true`. The native
+`infrabox_scan_subnet` tool accepts one canonical IPv4 CIDR from `/24` through
+`/32`, with no address allowlist. It discovers responsive addresses, checks 28
+common TCP ports, and attempts Nmap OS fingerprinting. Every call presents a
+one-time approval prompt naming the subnet and explaining active probes,
+possible alerts or disruption, and uncertain OS guesses. Approving confirms
+that this is your own local network. Denial, timeout, or an unavailable approval
+surface blocks execution; persistent approval is not offered.
+Setting it to `false` stops the worker and removes its container unit, the
+Gateway tool/plugin configuration, and the socket mount. Cached images and the
+dedicated network are retained for later re-enablement.
+
+Use an approval-capable OpenClaw UI or chat channel. Scans can inform NetBox
+onboarding, but inventory writes still require a separate proposal and
+confirmation. Results distinguish observed IPs/open ports from heuristic OS
+matches. Missing hosts and timeouts do not prove absence. Larger networks must
+not be split into batches to evade the limit.
+
+Nmap runs in a separate container with only raw-packet capability, its own
+automatically allocated bridge, fixed arguments, and a three-minute deadline.
+The Gateway keeps its existing privileges and connects over a private Unix
+socket. Check that Podman's allocated scanner subnet does not overlap your
+intended scan targets or LAN/VPN routes. Routed scanning may limit discovery
+and fingerprint accuracy. The checksum-locked package build supports x86_64.
+The full port list and runtime limits are in the
+[subnet-scanning contract](InfraBox%20%E2%80%94%20OpenClaw%20Subnet%20Scanning%20Implementation%20Plan.md).
+
+Apply changes with `agent.yml` and your explicit inventory and protected inputs
+as above. Component verification checks isolation, Nmap version, socket access,
+and rejected invalid targets without sending scan probes or invoking a model.
+Local scanner tests also include `node --test tests/test_subnet_plugin.mjs`.
+Conversational approval and a real network scan remain operator checks.
+
 ### Optional model providers
 
 The Gateway starts without provider credentials. InfraBox does not provision
