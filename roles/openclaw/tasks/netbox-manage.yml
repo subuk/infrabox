@@ -1,0 +1,21 @@
+---
+- name: 'Manage NetBox integration credential: {{ openclaw_netbox_action }}'
+  ansible.builtin.command:
+    argv: [python3, /usr/local/libexec/infrabox/openclaw-netbox-credential]
+    stdin: '{{ openclaw_netbox_parameters | to_json }}'
+  vars:
+    openclaw_netbox_parameters:
+      action: '{{ openclaw_netbox_action }}'
+      root_token: '{{ (lookup("ansible.builtin.file", openclaw_controller_dir ~ "/openbao-init.json") | from_json).root_token }}'
+      socket: '{{ openclaw_openbao_socket }}'
+      mount: '{{ openclaw_openbao_kv_mount }}'
+      token_file: '{{ openclaw_netbox_token_file }}'
+      uid: '{{ openclaw_uid }}'
+      gid: '{{ openclaw_gid }}'
+      url: '{{ openclaw_netbox_url }}'
+      ca_path: '{{ infrabox_root_ca_path }}'
+      username: '{{ netbox_openclaw_username | default("infrabox-openclaw") }}'
+      description: '{{ netbox_openclaw_token_description | default("InfraBox OpenClaw MCP") }}'
+  register: openclaw_netbox_result
+  changed_when: openclaw_netbox_result.rc == 0 and (openclaw_netbox_result.stdout | from_json).changed
+  no_log: true

@@ -1,0 +1,9 @@
+#!/bin/sh
+set -eu
+TOKEN_FILE=/run/openclaw-secrets/netbox-token
+test -s "$TOKEN_FILE"
+NETBOX_TOKEN="$(cat "$TOKEN_FILE")"
+test -n "$NETBOX_TOKEN"
+export NETBOX_TOKEN
+test -n "${NETBOX_URL:-}"
+exec /opt/infrabox/netbox-mcp/node_modules/.bin/netbox-mcp

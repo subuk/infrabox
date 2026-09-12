@@ -1,5 +1,61 @@
 # Implementation status
 
+## OpenClaw NetBox onboarding — 2026-09-12
+
+Implemented and deployed to the existing development appliance using
+`inventories/development/hosts.yml`: `infrabox1`, `almalinux@192.168.32.206`,
+AlmaLinux 10.2. Fresh SSH access succeeded; the older SSH blocker below no
+longer applies to this deployment. Earlier reboot/expiry acceptance remains
+separate and was not rerun.
+
+OpenClaw retains its pinned 2026.9.4 base image and now includes NetBox MCP
+0.2.0 with an integrity-locked dependency tree. The five tools run over stdio
+inside the Gateway container. The dedicated NetBox identity has exact
+view/add/change inventory permissions, no password login, and a non-expiring
+v2 token stored in OpenBao and atomically materialized into its protected
+runtime file. Existing generic hardware types, starter roles, and tags are
+reused. The managed onboarding skill is mounted read-only, is model-visible,
+and requires explicit confirmation; the management tag is an automation choice,
+not an OpenClaw access restriction.
+
+NetBox 4.7's implicit permissions include self-service API token management.
+A scoped authorization backend removes those defaults for the integration
+identity and rejects fallback grants, preserving normal human-account behavior.
+Early deployment attempts stopped at NetBox schema/default-permission checks;
+these were corrected before integration token provisioning completed.
+
+Completed checks:
+
+- Component deployment: `ok=82 changed=14 failed=0`; final explicit MCP CA
+  configuration: `ok=76 changed=2 failed=0`.
+- Stable component rerun: `ok=75 changed=0 failed=0`. Both credential contents,
+  file identities, and modification times were preserved; OpenClaw, NetBox,
+  and NetBox worker container start times were unchanged.
+- Final full-appliance `verify.yml`: `ok=74 changed=0 failed=0`, including
+  public HTTPS routes, application database/Redis TLS, certificates, running
+  services, and runner isolation. No checks were skipped.
+- Actual stdio MCP session and HTTPS NetBox read succeeded. OpenClaw's own
+  MCP probe exposed all five expected tools without diagnostics.
+- Effective inventory permissions matched exactly. Authenticated HTTPS reads
+  of NetBox users, tokens, and permissions endpoints returned HTTP 403.
+- OpenBao/runtime token equality, ownership/mode, Gateway health/readiness,
+  managed skill discovery, provider SecretRef audit, private/public CA trust,
+  and container isolation passed.
+- Local syntax checks, both enabled/disabled JSON renderings, launcher syntax,
+  skill validation, and all 21 unit tests passed. Unit tests cover credential
+  preservation/interrupted replacement and the scoped authorization boundary.
+
+Evidence: `artifacts/infrabox1/openclaw-netbox-deployment.log`,
+`openclaw-netbox-final-config.log`, `openclaw-netbox-idempotence.log`, and
+`openclaw-netbox-preservation.log`; full-appliance verification is recorded in
+`openclaw-netbox-verify.log`.
+
+Per operator direction, automated conversational acceptance, inference calls,
+temporary live inventory fixtures, write/delete probes, expiry tests, and reboot
+tests were not performed for this change. Onboarding conversations, confirmation,
+corrections, management-tag changes, and deletion refusal remain manual operator
+acceptance; structural checks do not establish those model behaviors.
+
 ## OpenClaw provider secret repair — 2026-09-12
 
 Diagnosed the live OpenAI provider failure: the KV secret was readable and the

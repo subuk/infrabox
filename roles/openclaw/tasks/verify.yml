@@ -29,3 +29,25 @@
     argv: [podman, exec, openclaw, node, openclaw.mjs, secrets, audit, --check, --allow-exec, --json]
   changed_when: false
   no_log: true
+- name: Verify OpenBao and NetBox credential identity without changing inventory
+  ansible.builtin.include_tasks: netbox-manage.yml
+  vars:
+    openclaw_netbox_action: verify
+  when: openclaw_netbox_enabled | bool
+- name: Verify pinned MCP tools and an actual NetBox read through stdio
+  ansible.builtin.command:
+    argv: [podman, exec, openclaw, node, /opt/infrabox/verify-netbox-mcp.mjs, '{{ openclaw_netbox_mcp_version }}']
+  changed_when: false
+  when: openclaw_netbox_enabled | bool
+- name: Probe the configured server through OpenClaw's own MCP client
+  ansible.builtin.command:
+    argv: [podman, exec, openclaw, node, openclaw.mjs, mcp, probe, netbox, --json]
+  register: openclaw_netbox_probe
+  changed_when: false
+  when: openclaw_netbox_enabled | bool
+- name: Require the five tools from OpenClaw's MCP probe
+  ansible.builtin.assert:
+    that:
+      - (openclaw_netbox_probe.stdout | from_json).servers.netbox.tools == 5
+      - (openclaw_netbox_probe.stdout | from_json).diagnostics | length == 0
+  when: openclaw_netbox_enabled | bool

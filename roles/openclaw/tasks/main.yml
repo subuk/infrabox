@@ -1,4 +1,8 @@
 ---
+- name: Prepare NetBox integration authorization
+  ansible.builtin.import_tasks: netbox-prepare.yml
+  when: openclaw_netbox_enabled | bool
+  tags: [configure]
 - name: Install OpenClaw
   ansible.builtin.import_tasks: install.yml
   tags: [install]
@@ -7,6 +11,10 @@
   tags: [configure]
 - name: Provision OpenClaw token and renewal
   ansible.builtin.import_tasks: token.yml
+  tags: [configure]
+- name: Provision NetBox onboarding integration
+  ansible.builtin.import_tasks: netbox.yml
+  when: openclaw_netbox_enabled | bool
   tags: [configure]
 - name: Start OpenClaw
   ansible.builtin.import_tasks: service.yml
@@ -18,4 +26,10 @@
   ansible.builtin.include_tasks: bao-manage.yml
   vars:
     openclaw_token_action: finalize
+  tags: [service]
+- name: Finalize verified NetBox credential replacement
+  ansible.builtin.include_tasks: netbox-manage.yml
+  vars:
+    openclaw_netbox_action: finalize
+  when: openclaw_netbox_enabled | bool
   tags: [service]

@@ -14,6 +14,7 @@ NetworkAlias=netbox.{{ infrabox_internal_domain }}
 PublishPort=127.0.0.1:8080:8080
 EnvironmentFile={{ infrabox_config_root }}/netbox/netbox.env
 Volume={{ infrabox_config_root }}/netbox/configuration.py:/etc/netbox/config/configuration.py:ro,z
+Volume={{ infrabox_config_root }}/netbox/infrabox_auth.py:/opt/netbox/netbox/infrabox_auth.py:ro,z
 Volume={{ infrabox_storage_root }}/netbox/media:/opt/netbox/netbox/media:z
 Volume={{ infrabox_storage_root }}/netbox/reports:/opt/netbox/netbox/reports:z
 Volume={{ infrabox_storage_root }}/netbox/scripts:/opt/netbox/netbox/scripts:z

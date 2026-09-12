@@ -1,4 +1,13 @@
 ---
+- name: Inspect pending NetBox credential restart requirement
+  ansible.builtin.stat:
+    path: '{{ openclaw_config_dir }}/netbox-restart-required'
+  register: openclaw_netbox_restart_required
+  when: openclaw_netbox_enabled | bool
+- name: Regenerate units when resuming an interrupted integration deployment
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when: openclaw_netbox_enabled | bool and openclaw_netbox_restart_required.stat.exists
 - name: Apply OpenClaw Quadlet
   ansible.builtin.include_role:
     name: quadlet
@@ -15,6 +24,12 @@
     msg: OpenClaw token replacement requires a verified Gateway restart.
   changed_when: true
   when: openclaw_restart_required.stat.exists
+  notify: Restart openclaw
+- name: Schedule Gateway restart for a replaced NetBox credential
+  ansible.builtin.debug:
+    msg: NetBox credential replacement requires a verified Gateway restart.
+  changed_when: true
+  when: openclaw_netbox_enabled | bool and openclaw_netbox_restart_required.stat.exists
   notify: Restart openclaw
 - name: Apply OpenClaw configuration changes
   ansible.builtin.meta: flush_handlers

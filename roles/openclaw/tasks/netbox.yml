@@ -1,0 +1,22 @@
+---
+- name: Reconcile NetBox-owned integration resources
+  ansible.builtin.include_role:
+    name: netbox
+    tasks_from: openclaw
+- name: Install host-only NetBox credential management helper
+  ansible.builtin.copy:
+    src: netbox-credential.py
+    dest: /usr/local/libexec/infrabox/openclaw-netbox-credential
+    owner: root
+    group: root
+    mode: '0700'
+- name: Preserve or provision the NetBox integration credential
+  ansible.builtin.include_tasks: netbox-manage.yml
+  vars:
+    openclaw_netbox_action: provision
+- name: Enforce private NetBox credential ownership and mode
+  ansible.builtin.file:
+    path: '{{ openclaw_netbox_token_file }}'
+    owner: '{{ openclaw_uid }}'
+    group: '{{ openclaw_gid }}'
+    mode: '0600'

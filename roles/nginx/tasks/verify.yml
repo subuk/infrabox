@@ -16,3 +16,4 @@
   ansible.builtin.uri:
     url: 'https://{{ openclaw_hostname | default("claw." ~ infrabox_domain) }}/{{ item }}'
   loop: [healthz, readyz]
+  when: nginx_verify_openclaw | default(true) | bool

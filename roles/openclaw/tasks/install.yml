@@ -50,17 +50,34 @@
     owner: root
     group: root
     mode: '0700'
-- name: Define resolver executable ownership correction
+- name: Validate pinned NetBox MCP build inputs and HTTPS endpoint
+  ansible.builtin.assert:
+    that:
+      - openclaw_netbox_url is match('^https://[^/@]+/?$')
+      - openclaw_netbox_token_file == openclaw_config_dir ~ '/secrets/netbox-token'
+      - (lookup('ansible.builtin.file', role_path ~ '/files/netbox-mcp/package.json') | from_json).dependencies['@zenixsolutions/netbox-mcp'] == openclaw_netbox_mcp_version
+  when: openclaw_netbox_enabled | bool
+- name: Copy locked NetBox MCP image inputs
   ansible.builtin.copy:
+    src: '{{ item.src }}'
+    dest: '{{ infrabox_config_root }}/openclaw-image/{{ item.dest }}'
+    owner: root
+    group: root
+    mode: '0644'
+  loop:
+    - {src: netbox-mcp/package.json, dest: package.json}
+    - {src: netbox-mcp/package-lock.json, dest: package-lock.json}
+    - {src: infrabox-netbox-mcp, dest: infrabox-netbox-mcp}
+    - {src: verify-netbox-mcp.mjs, dest: verify-netbox-mcp.mjs}
+  register: openclaw_mcp_build_inputs
+  when: openclaw_netbox_enabled | bool
+- name: Define pinned OpenClaw runtime image
+  ansible.builtin.template:
+    src: Containerfile.j2
     dest: '{{ infrabox_config_root }}/openclaw-image/Containerfile'
     owner: root
     group: root
     mode: '0600'
-    content: |
-      FROM {{ openclaw_image }}
-      USER root
-      RUN chown 1000:1000 /usr/local/bin/node && chmod 0755 /usr/local/bin/node
-      USER 1000:1000
   register: openclaw_build_definition
 - name: Inspect corrected runtime image
   ansible.builtin.command:
@@ -68,16 +85,16 @@
   register: openclaw_runtime_exists
   failed_when: openclaw_runtime_exists.rc not in [0, 1]
   changed_when: false
-- name: Build corrected runtime from pinned official image
+- name: Build runtime from pinned image and locked MCP dependencies
   ansible.builtin.command:
     argv:
       - podman
       - build
-      - --network=none
+      - '--network={{ "private" if openclaw_netbox_enabled | bool else "none" }}'
       - --pull=never
       - --tag
       - '{{ openclaw_runtime_image }}'
       - '{{ infrabox_config_root }}/openclaw-image'
-  when: openclaw_build_definition.changed or openclaw_runtime_exists.rc != 0
+  when: openclaw_build_definition.changed or openclaw_mcp_build_inputs.changed | default(false) or openclaw_runtime_exists.rc != 0
   changed_when: true
   notify: Restart openclaw

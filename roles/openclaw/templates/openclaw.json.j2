@@ -9,7 +9,22 @@
     "controlUi": {"enabled": true, "allowedOrigins": [{{ ("https://" ~ openclaw_hostname) | to_json }}]}
   },
   "agents": {"defaults": {"workspace": "/home/node/.openclaw/workspace", "sandbox": {"mode": "off"}}},
-  "tools": {"profile": "minimal", "deny": ["exec", "process", "browser", "nodes"]},
+{% if openclaw_netbox_enabled | bool %}
+  "tools": {
+    "profile": "messaging", "alsoAllow": ["read"], "fs": {"workspaceOnly": true},
+    "deny": ["exec", "process", "browser", "nodes", "terminal", "write", "edit", "apply_patch",
+      "secrets", "sessions", "sessions_list", "sessions_history", "sessions_search", "conversations_list",
+      "conversations_send", "conversations_turn", "sessions_send", "sessions_spawn", "sessions_yield", "subagents", "message"]
+  },
+  "mcp": {"servers": {"netbox": {
+    "command": "/usr/local/bin/infrabox-netbox-mcp", "transport": "stdio",
+    "env": {"NETBOX_URL": {{ openclaw_netbox_url | to_json }}, "NODE_EXTRA_CA_CERTS": "/run/infrabox-ca/root-ca.crt"},
+    "toolFilter": {"include": ["netbox_global_search", "netbox_discover", "netbox_describe", "netbox_read", "netbox_write"]}
+  }}},
+  "skills": {"allowBundled": [], "entries": {"netbox-onboarding": {"enabled": true}}},
+{% else %}
+  "tools": {"profile": "minimal", "deny": ["exec", "process", "browser", "nodes", "terminal"]},
+{% endif %}
   "plugins": {"allow": ["vault"], "entries": {"vault": {"enabled": true}}},
   "secrets": {"providers": {"vault": {"source": "exec", "pluginIntegration": {"pluginId": "vault", "integrationId": "vault"}}}},
   "models": {"providers": {{ openclaw_model_providers | to_json }}}

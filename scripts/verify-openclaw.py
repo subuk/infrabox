@@ -30,13 +30,32 @@ require('no-new-privileges' in container['HostConfig']['SecurityOpt'], 'no-new-p
 ports = container['NetworkSettings']['Ports']
 require(ports[str(port) + '/tcp'] == [{'HostIp': '127.0.0.1', 'HostPort': str(port)}], 'Gateway exposed beyond loopback')
 allowed = {config_dir + '/openclaw.json', config_dir + '/secrets', storage_dir + '/state', storage_dir + '/workspace', ca_path}
+configuration = json.loads(Path(config_dir, 'openclaw.json').read_text())
+netbox_enabled = 'netbox' in configuration.get('mcp', {}).get('servers', {})
+if netbox_enabled:
+    allowed.add(config_dir + '/skills/netbox-onboarding')
 require({m['Source'] for m in container['Mounts']} == allowed, 'unexpected container mount')
 for mount in container['Mounts']:
-    if mount['Source'] in {config_dir + '/openclaw.json', config_dir + '/secrets', ca_path}:
+    if mount['Source'] in {config_dir + '/openclaw.json', config_dir + '/secrets', ca_path, config_dir + '/skills/netbox-onboarding'}:
         require(not mount['RW'], 'credential/configuration/CA mount is writable')
 for name in ['openclaw.json', 'openclaw.env', 'secrets/vault-token']:
     require(Path(config_dir, name).stat().st_mode & 0o077 == 0, 'world/group-readable configuration or secret')
-configuration = json.loads(Path(config_dir, 'openclaw.json').read_text())
+require({'exec', 'process', 'browser', 'nodes', 'terminal'} <= set(configuration['tools']['deny']), 'execution tool denials missing')
+if netbox_enabled:
+    require(configuration['tools']['profile'] == 'messaging', 'unexpected MCP tool profile')
+    require(configuration['tools']['alsoAllow'] == ['read'], 'unexpected tool profile additions')
+    require(configuration['tools']['fs']['workspaceOnly'] is True, 'file reads escape workspace')
+    require({'write', 'edit', 'apply_patch', 'sessions_spawn', 'subagents', 'secrets'} <= set(configuration['tools']['deny']), 'unexpected mutation/delegation tools')
+    token = Path(config_dir, 'secrets/netbox-token').read_text().strip()
+    require(token and token not in json.dumps(configuration), 'NetBox token missing or present in config')
+    require(Path(config_dir, 'secrets/netbox-token').stat().st_mode & 0o777 == 0o600, 'NetBox token mode incorrect')
+    require(token not in Path(config_dir, 'skills/netbox-onboarding/SKILL.md').read_text(), 'NetBox token in skill')
+    skill = json.loads(run('podman', 'exec', 'openclaw', 'node', 'openclaw.mjs',
+                           'skills', 'info', 'netbox-onboarding', '--json'))
+    require(skill.get('eligible') and skill.get('modelVisible') and not skill.get('disabled'),
+            'Managed onboarding skill is unavailable to the model')
+    require(skill.get('filePath') == '/home/node/.openclaw/workspace/skills/netbox-onboarding/SKILL.md',
+            'Another skill shadows the managed onboarding instructions')
 require(configuration['gateway']['auth']['mode'] == 'token', 'Gateway token auth disabled')
 require(configuration['gateway']['terminal']['enabled'] is False, 'Gateway terminal enabled')
 require(configuration['agents']['defaults']['sandbox']['mode'] == 'off', 'nested sandbox enabled')
@@ -44,6 +63,7 @@ require(configuration['plugins']['entries']['vault']['enabled'] is True, 'bundle
 require(not configuration['gateway']['tls']['enabled'], 'unexpected Gateway TLS server')
 env = dict(item.split('=', 1) for item in container['Config']['Env'] if '=' in item)
 require('VAULT_TOKEN' not in env and 'BAO_TOKEN' not in env, 'OpenBao token present in environment')
+require('NETBOX_TOKEN' not in env, 'NetBox token present in Gateway environment')
 require(env.get('OPENCLAW_VAULT_AUTH_METHOD') == 'token_file', 'incorrect Vault auth method')
 require('NODE_TLS_REJECT_UNAUTHORIZED' not in env, 'TLS verification bypass')
 require(env.get('NODE_EXTRA_CA_CERTS') == '/run/infrabox-ca/root-ca.crt', 'Node RootCA missing')

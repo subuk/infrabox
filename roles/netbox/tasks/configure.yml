@@ -12,6 +12,14 @@
     group: '0'
     mode: '0770'
   loop: [media, reports, scripts]
+- name: Render scoped integration authorization backend
+  ansible.builtin.template:
+    src: infrabox_auth.py.j2
+    dest: '{{ infrabox_config_root }}/netbox/infrabox_auth.py'
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart netbox
 - name: Render NetBox required settings
   ansible.builtin.template:
     src: configuration.py.j2

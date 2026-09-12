@@ -4,8 +4,12 @@
 - ansible.builtin.import_playbook: pki.yml
 - ansible.builtin.import_playbook: services.yml
 - ansible.builtin.import_playbook: applications.yml
-- ansible.builtin.import_playbook: agent.yml
 - ansible.builtin.import_playbook: edge.yml
+  vars:
+    # NetBox MCP provisioning validates the existing nginx HTTPS route before
+    # OpenClaw starts. The final verify.yml checks OpenClaw through nginx too.
+    nginx_verify_openclaw: false
+- ansible.builtin.import_playbook: agent.yml
 - ansible.builtin.import_playbook: observability.yml
 - ansible.builtin.import_playbook: ci.yml
 - ansible.builtin.import_playbook: verify.yml

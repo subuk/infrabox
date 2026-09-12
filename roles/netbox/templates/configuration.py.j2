@@ -17,3 +17,6 @@ SECRET_KEY = os.environ["SECRET_KEY"]
 API_TOKEN_PEPPERS = {1: os.environ["API_TOKEN_PEPPER_1"]}
 CSRF_TRUSTED_ORIGINS = ["https://netbox.{{ infrabox_domain }}"]
 CENSUS_REPORTING_ENABLED = False
+# Run the scoped boundary before NetBox's implicit default-permission backend.
+REMOTE_AUTH_BACKEND = ['infrabox_auth.InfraBoxObjectPermissionBackend',
+                       'netbox.authentication.RemoteUserBackend']

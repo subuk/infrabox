@@ -1,0 +1,9 @@
+---
+- name: Configure the NetBox-owned integration authorization boundary
+  ansible.builtin.include_role:
+    name: netbox
+    tasks_from: configure
+- name: Apply NetBox authorization changes before provisioning credentials
+  ansible.builtin.include_role:
+    name: netbox
+    tasks_from: service

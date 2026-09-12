@@ -304,10 +304,13 @@ Review these settings in your local inventory's `group_vars/all.yml`:
 
 The pinned image uses UID/GID 1000. Configuration and credentials live under
 `/etc/infrabox/openclaw`. Ansible builds a local runtime image from the pinned
-official image, changing only `/usr/local/bin/node` ownership to UID/GID 1000
+official image, correcting `/usr/local/bin/node` ownership to UID/GID 1000
 (mode 0755). OpenClaw's exec SecretRef validation requires its executable to be
 owned by the running user; the official image supplies a root-owned Node binary.
-The build uses no network, and the container still runs without capabilities.
+With NetBox onboarding enabled, the build also installs NetBox MCP 0.2.0 using
+the committed npm lockfile and integrity hashes. Only image construction needs
+registry access; container startup installs nothing. The container still runs
+without capabilities.
 Ansible verification runs the full SecretRef audit to catch resolver failures.
 Persistent state and workspace live under
 `/srv/infrabox/openclaw`. The container receives only these component mounts and
@@ -336,6 +339,90 @@ and issue a replacement service token, then restarts OpenClaw. Healthy tokens
 survive ordinary reruns. A token with incorrect properties is replaced, and its
 superseded token is retired only after the replacement passes Gateway and bundled
 resolver checks.
+
+### NetBox conversational onboarding
+
+On established appliances, `agent.yml` also provisions the NetBox integration:
+
+```sh
+.venv/bin/ansible-playbook -i inventories/development/hosts.yml agent.yml \
+  -e @.secrets/infrabox1/inputs.json
+```
+
+Use your selected inventory for another appliance. NetBox and its HTTPS endpoint
+must already be healthy. `site.yml` includes this integration on normal full-stack
+runs. No model provider is required for deployment or structural verification.
+
+| Setting | Meaning |
+| --- | --- |
+| `openclaw_netbox_enabled` | Defaults to `true`. Disabling removes the MCP configuration and skill mount; preserves the identity, inventory, and protected credential. |
+| `openclaw_netbox_url` | Defaults to `https://netbox.<infrabox_domain>`, the existing nginx HTTPS route. The internal NetBox container endpoint is HTTP and is not used for this integration. |
+| `openclaw_netbox_mcp_version` | Pinned to `0.2.0`; change the package manifest and lockfile together when deliberately upgrading. |
+| `netbox_openclaw_username` | Dedicated service identity, default `infrabox-openclaw`. |
+| `netbox_openclaw_token_description` | Credential ownership label, default `InfraBox OpenClaw MCP`. Keep it stable after provisioning. |
+
+The service identity has no password login, staff/superuser status, deletion
+permission, or administrative object permissions. Its exact permissions are
+view/add/change on the onboarding plan's inventory models and tags, including
+existing untagged records. The NetBox role reconciles this dedicated identity,
+permissions, generic hardware types, starter roles, and tags without overwriting
+existing inventory. The OpenClaw role invokes those NetBox tasks, then owns
+credential storage, materialization, MCP configuration, and the managed skill.
+
+NetBox 4.7's [default permissions](https://github.com/netbox-community/netbox/blob/v4.7.0/netbox/netbox/settings.py)
+grant every user permission to manage their own API tokens,
+bookmarks, subscriptions, and notifications. A small NetBox authorization backend
+excludes those defaults for the dedicated integration username and denies fallback
+grants. Human accounts retain their normal self-service permissions. This backend
+is mounted read-only into both NetBox containers; deploying its configuration
+requires their normal service restart. Inventory access still comes from NetBox
+object permissions, and the integration's effective permissions are checked exactly.
+
+The NetBox v2 API token is write-enabled and **has no expiration**. OpenBao KV v2
+stores it at `kv/openclaw/integrations/netbox`, field `apiToken`. The runtime file
+is `/etc/infrabox/openclaw/secrets/netbox-token` (UID/GID 1000, mode 0600), visible
+inside the read-only secrets-directory mount as `/run/openclaw-secrets/netbox-token`.
+The launcher passes it only to the MCP child's environment. It is absent from
+`openclaw.json`, the skill, and the Gateway environment. The existing OpenBao
+token and certificate Agent identities remain separate.
+
+Healthy Ansible reruns preserve the token. To repair a revoked token or restore
+a missing runtime file, rerun `agent.yml` with the protected inputs. Ansible
+validates a replacement through HTTPS before publishing it to OpenBao, atomically
+replaces the runtime file, and restarts OpenClaw. It disables superseded tokens
+belonging to this exact service identity and description only after verification.
+A persistent `netbox-restart-required` marker allows an interrupted deployment to
+resume safely. Credential permissions are enforced on every provisioning run.
+
+The `messaging` tool profile exposes the five NetBox MCP tools. A workspace-only
+`read` tool loads the Ansible-managed skill, mounted read-only at
+`/home/node/.openclaw/workspace/skills/netbox-onboarding/SKILL.md`. Shell, terminal,
+process, browser, node access, file writes, and delegation remain denied. The
+skill requires reading NetBox, presenting a concrete proposal, and receiving
+explicit confirmation before each logical write batch, including direct commands
+such as "add server02". This confirmation is a skill policy; NetBox permissions
+independently enforce the deletion and administrative restrictions.
+
+To use the workflow:
+
+1. Configure a model provider using an OpenBao SecretRef as described below.
+2. Open `https://claw.<infrabox_domain>`, start a new chat, and select the model.
+3. Describe your infrastructure and answer the necessary follow-up questions.
+4. Review the proposed inventory, placeholder hardware/interfaces, and tags.
+5. Confirm the proposal, then inspect the resulting records in NetBox.
+
+`infrabox-user-provided` records conversational provenance. `infrabox-managed`
+selects objects for later automation; it is not an OpenClaw permission boundary.
+You can ask OpenClaw to add or remove that tag association after confirmation.
+Unrelated tags are preserved. A generic hardware type or `infrabox-unknown`
+interface is an explicit placeholder, not a detected fact.
+
+InfraBox currently records what you provide; it has not verified the managed
+servers. Discovery and enrichment remain future work. Conversational acceptance
+is performed manually by the operator. Automated verification opens an MCP
+session, checks the five tools, reads NetBox with verified TLS, and checks
+credentials, effective object permissions, and isolation. It makes no model calls,
+creates no temporary inventory fixtures, and performs no live write/delete probes.
 
 ### Optional model providers
 

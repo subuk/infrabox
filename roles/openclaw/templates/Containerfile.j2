@@ -1,0 +1,11 @@
+FROM {{ openclaw_image }}
+USER root
+RUN chown 1000:1000 /usr/local/bin/node && chmod 0755 /usr/local/bin/node
+{% if openclaw_netbox_enabled | bool %}
+COPY package.json package-lock.json /opt/infrabox/netbox-mcp/
+RUN cd /opt/infrabox/netbox-mcp && npm ci --omit=dev --ignore-scripts --no-audit --no-fund && npm cache clean --force
+COPY infrabox-netbox-mcp /usr/local/bin/infrabox-netbox-mcp
+COPY verify-netbox-mcp.mjs /opt/infrabox/verify-netbox-mcp.mjs
+RUN chmod 0755 /usr/local/bin/infrabox-netbox-mcp
+{% endif %}
+USER 1000:1000
