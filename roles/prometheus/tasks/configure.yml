@@ -1,9 +1,12 @@
 ---
-- name: Create configuration directory
+- name: Create Prometheus configuration and generation directories
   ansible.builtin.file:
-    path: '{{ infrabox_config_root }}/prometheus'
+    path: '{{ item }}'
     state: directory
     mode: '0755'
+  loop:
+    - '{{ infrabox_config_root }}/prometheus'
+    - '{{ infrabox_config_root }}/prometheus/generations'
 - name: Create persistent data directory
   ansible.builtin.file:
     path: '{{ infrabox_storage_root }}/prometheus'
@@ -11,18 +14,60 @@
     owner: '{{ prometheus_uid }}'
     group: '{{ prometheus_uid }}'
     mode: '0700'
-- name: Configure Prometheus self monitoring
+- name: Read staged monitoring generation
+  ansible.builtin.slurp:
+    src: '{{ infrabox_config_root }}/monitoring/staged/catalog.json'
+  register: prometheus_catalog
+- name: Select complete monitoring generation
+  ansible.builtin.set_fact:
+    prometheus_generation: '{{ (prometheus_catalog.content | b64decode | from_json).generation }}'
+- name: Create generation directory
+  ansible.builtin.file:
+    path: '{{ infrabox_config_root }}/prometheus/generations/{{ prometheus_generation }}'
+    state: directory
+    mode: '0755'
+- name: Stage generated rules
   ansible.builtin.copy:
-    dest: '{{ infrabox_config_root }}/prometheus/prometheus.yml'
+    src: '{{ infrabox_config_root }}/monitoring/staged/rules.json'
+    dest: '{{ infrabox_config_root }}/prometheus/generations/{{ prometheus_generation }}/rules.json'
+    remote_src: true
     mode: '0644'
-    content: |
-      global:
-        scrape_interval: 30s
-      scrape_configs:
-        - job_name: prometheus
-          static_configs:
-            - targets: ['localhost:9090']
+- name: Stage complete Prometheus configuration
+  ansible.builtin.template:
+    src: prometheus.yml.j2
+    dest: '{{ infrabox_config_root }}/prometheus/generations/{{ prometheus_generation }}/prometheus.yml'
+    mode: '0644'
+  register: prometheus_config
+- name: Validate complete configuration before activation
+  ansible.builtin.command:
+    argv:
+      - podman
+      - run
+      - --rm
+      - --network=none
+      - '--volume={{ infrabox_config_root }}/prometheus/generations/{{ prometheus_generation }}:/etc/prometheus/current:ro,z'
+      - --entrypoint=promtool
+      - '{{ prometheus_image }}'
+      - check
+      - config
+      - /etc/prometheus/current/prometheus.yml
+  changed_when: false
+- name: Activate validated configuration generation
+  ansible.builtin.file:
+    src: 'generations/{{ prometheus_generation }}'
+    dest: '{{ infrabox_config_root }}/prometheus/current'
+    state: link
   notify: Restart prometheus
+- name: Publish matching catalog after validation
+  ansible.builtin.copy:
+    src: '{{ infrabox_config_root }}/monitoring/staged/{{ item.src }}'
+    dest: '{{ item.dest }}'
+    remote_src: true
+    mode: '0644'
+  loop:
+    - {src: catalog.json, dest: '{{ infrabox_config_root }}/monitoring/catalog.json'}
+    - {src: catalog.json, dest: /var/lib/infrabox-monitoring-public/catalog.json}
+    - {src: catalog.prom, dest: /var/lib/infrabox-node-exporter/catalog.prom}
 - name: Define Prometheus Quadlet
   ansible.builtin.include_role:
     name: quadlet

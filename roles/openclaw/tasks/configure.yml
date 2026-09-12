@@ -1,4 +1,11 @@
 ---
+- name: Ensure private health socket mount exists before Gateway startup
+  ansible.builtin.file:
+    path: /run/infrabox-health
+    state: directory
+    owner: nobody
+    group: '1000'
+    mode: '0750'
 - name: Create restricted OpenClaw directories
   ansible.builtin.file:
     path: '{{ item }}'

@@ -1,0 +1,7 @@
+---
+- name: Apply host exporter service
+  ansible.builtin.systemd_service:
+    name: infrabox-node-exporter
+    enabled: true
+    daemon_reload: '{{ node_exporter_unit.changed | default(false) }}'
+    state: '{{ "restarted" if node_exporter_unit.changed | default(false) else "started" }}'

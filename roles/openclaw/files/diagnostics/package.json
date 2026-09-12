@@ -1,0 +1,1 @@
+{"name":"infrabox-openclaw-diagnostics","private":true,"version":"1.0.0","dependencies":{"@openclaw/diagnostics-prometheus":"2026.9.4"}}

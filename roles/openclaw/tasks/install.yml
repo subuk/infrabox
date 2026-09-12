@@ -90,6 +90,24 @@
     mode: '0644'
   register: openclaw_scanner_plugin_package
   when: openclaw_subnet_scan_enabled | bool
+- name: Copy fixed monitoring plugin and runtime adapter
+  ansible.builtin.copy:
+    src: '{{ item.src }}'
+    dest: '{{ infrabox_config_root }}/openclaw-image/{{ item.dest }}'
+    mode: '0644'
+  loop:
+    - {src: health/index.mjs, dest: health-index.mjs}
+    - {src: health/package.json, dest: health-package.json}
+    - {src: health/openclaw.plugin.json, dest: health-plugin.json}
+    - {src: '{{ playbook_dir }}/roles/integration_checks/files/openclaw-probe.mjs', dest: openclaw-probe.mjs}
+  register: openclaw_monitoring_inputs
+- name: Copy integrity-locked diagnostics dependency
+  ansible.builtin.copy:
+    src: 'diagnostics/{{ item }}'
+    dest: '{{ infrabox_config_root }}/openclaw-image/diagnostics-{{ item }}'
+    mode: '0644'
+  loop: [package.json, package-lock.json, install.mjs]
+  register: openclaw_diagnostics_inputs
 - name: Define pinned OpenClaw runtime image
   ansible.builtin.template:
     src: Containerfile.j2
@@ -109,11 +127,39 @@
     argv:
       - podman
       - build
-      - '--network={{ "private" if openclaw_netbox_enabled | bool else "none" }}'
+      - --network=private
       - --pull=never
       - --tag
       - '{{ openclaw_runtime_image }}'
       - '{{ infrabox_config_root }}/openclaw-image'
-  when: openclaw_build_definition.changed or openclaw_mcp_build_inputs.changed | default(false) or openclaw_scanner_plugin_inputs.changed | default(false) or openclaw_scanner_plugin_package.changed | default(false) or openclaw_runtime_exists.rc != 0
+  when: openclaw_diagnostics_inputs.changed or openclaw_monitoring_inputs.changed or openclaw_build_definition.changed or openclaw_mcp_build_inputs.changed | default(false) or openclaw_scanner_plugin_inputs.changed | default(false) or openclaw_scanner_plugin_package.changed | default(false) or openclaw_runtime_exists.rc != 0
   changed_when: true
+  notify: Restart openclaw
+
+- name: Ensure persistent state exists for official plugin installation
+  ansible.builtin.file:
+    path: '{{ openclaw_storage_dir }}/state'
+    state: directory
+    owner: '{{ openclaw_uid }}'
+    group: '{{ openclaw_gid }}'
+    mode: '0700'
+- name: Install and verify official diagnostics provenance before Gateway startup
+  ansible.builtin.command:
+    argv:
+      - podman
+      - run
+      - --rm
+      - --network=infrabox
+      - --user=1000:1000
+      - --cap-drop=all
+      - --security-opt=no-new-privileges
+      - '--volume={{ openclaw_storage_dir }}/state:/home/node/.openclaw:z'
+      - '--volume={{ infrabox_root_ca_path }}:/run/infrabox-ca/root-ca.crt:ro,z'
+      - --env=NODE_EXTRA_CA_CERTS=/run/infrabox-ca/root-ca.crt
+      - --env=OPENCLAW_CONFIG_PATH=/tmp/infrabox-plugin-install.json
+      - --entrypoint=node
+      - '{{ openclaw_runtime_image }}'
+      - /opt/infrabox/diagnostics/install.mjs
+  register: openclaw_diagnostics_install
+  changed_when: openclaw_diagnostics_install.rc == 0 and (openclaw_diagnostics_install.stdout | from_json).changed
   notify: Restart openclaw

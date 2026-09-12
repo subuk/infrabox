@@ -1,0 +1,12 @@
+---
+- ansible.builtin.import_playbook: monitoring-baseline.yml
+- ansible.builtin.import_playbook: openbao-runtime.yml
+- name: Configure native Gitea telemetry
+  hosts: infrabox
+  become: true
+  roles:
+    - role: gitea
+      tags: [gitea]
+- ansible.builtin.import_playbook: agent.yml
+- ansible.builtin.import_playbook: observability.yml
+- ansible.builtin.import_playbook: monitoring-verify.yml

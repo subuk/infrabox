@@ -1,0 +1,1718 @@
+{
+  "uid": "infrabox-health",
+  "title": "InfraBox Health",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "tags": [
+    "infrabox"
+  ],
+  "timezone": "browser",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Appliance health",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "infrabox-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(vector(2) and (count(infrabox:check_state{state=\"critical\"}) > 0)) or (vector(3) unless (infrabox:coverage_ok == 1 and on() (time() - timestamp(infrabox:coverage_ok) < 90) and on() (time() - infrabox_worker_heartbeat_timestamp_seconds < 90))) or (vector(1) and (count(infrabox:check_state{state=\"warning\"}) > 0)) or vector(0)",
+          "instant": true,
+          "legendFormat": "{% raw %}{{component}}{% endraw %} / {% raw %}{{check_id}}{% endraw %} {% raw %}{{state}}{% endraw %} {% raw %}{{alertstate}}{% endraw %}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "UNKNOWN",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 2
+              },
+              {
+                "color": "gray",
+                "value": 3
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Healthy",
+                  "color": "green"
+                },
+                "1": {
+                  "text": "Warning",
+                  "color": "orange"
+                },
+                "2": {
+                  "text": "Critical",
+                  "color": "red"
+                },
+                "3": {
+                  "text": "Unknown",
+                  "color": "gray"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background"
+      }
+    },
+    {
+      "id": 2,
+      "title": "Coverage",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "infrabox-prometheus"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(infrabox:coverage_ok == 1 and on() (time() - timestamp(infrabox:coverage_ok) < 90) and on() (time() - infrabox_worker_heartbeat_timestamp_seconds < 90)) or vector(0)",
+          "instant": true,
+          "legendFormat": "{% raw %}{{component}}{% endraw %} / {% raw %}{{check_id}}{% endraw %} {% raw %}{{state}}{% endraw %} {% raw %}{{alertstate}}{% endraw %}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "UNKNOWN",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "gray",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Incomplete",
+                  "color": "gray"
+                },
+                "1": {
+                  "text": "Complete",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background"
+      }
+    },
+    {
+      "id": 3,
+      "title": "Pending / firing alerts",
+      "type": "table",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "infrabox-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "ALERTS{alertname=~\"InfraBox.*|Monitoring.*\"}",
+          "instant": true,
+          "legendFormat": "{% raw %}{{component}}{% endraw %} / {% raw %}{{check_id}}{% endraw %} {% raw %}{{state}}{% endraw %} {% raw %}{{alertstate}}{% endraw %}",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "\u2014",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "minWidth": 60,
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "State"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Alert state"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 85
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Severity"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 75
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Check"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 170
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Service"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Integration"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "State"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "healthy": {
+                        "text": "healthy",
+                        "color": "green"
+                      },
+                      "warning": {
+                        "text": "warning",
+                        "color": "orange"
+                      },
+                      "critical": {
+                        "text": "critical",
+                        "color": "red"
+                      },
+                      "unknown": {
+                        "text": "unknown",
+                        "color": "gray"
+                      },
+                      "pending": {
+                        "text": "pending",
+                        "color": "orange"
+                      },
+                      "firing": {
+                        "text": "firing",
+                        "color": "red"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Alert state"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "healthy": {
+                        "text": "healthy",
+                        "color": "green"
+                      },
+                      "warning": {
+                        "text": "warning",
+                        "color": "orange"
+                      },
+                      "critical": {
+                        "text": "critical",
+                        "color": "red"
+                      },
+                      "unknown": {
+                        "text": "unknown",
+                        "color": "gray"
+                      },
+                      "pending": {
+                        "text": "pending",
+                        "color": "orange"
+                      },
+                      "firing": {
+                        "text": "firing",
+                        "color": "red"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Severity"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "healthy": {
+                        "text": "healthy",
+                        "color": "green"
+                      },
+                      "warning": {
+                        "text": "warning",
+                        "color": "orange"
+                      },
+                      "critical": {
+                        "text": "critical",
+                        "color": "red"
+                      },
+                      "unknown": {
+                        "text": "unknown",
+                        "color": "gray"
+                      },
+                      "pending": {
+                        "text": "pending",
+                        "color": "orange"
+                      },
+                      "firing": {
+                        "text": "firing",
+                        "color": "red"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "instance": true,
+              "job": true,
+              "Value": true,
+              "alertname": true
+            },
+            "renameByName": {
+              "check_id": "Check",
+              "component": "Service",
+              "integration": "Integration",
+              "state": "State",
+              "alertstate": "Alert state",
+              "severity": "Severity"
+            },
+            "indexByName": {
+              "state": 0,
+              "alertstate": 0,
+              "severity": 1,
+              "check_id": 2,
+              "component": 3,
+              "integration": 4,
+              "Value": 5
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Service health",
+      "type": "table",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "infrabox-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "infrabox:check_state{integration=\"\"}",
+          "instant": true,
+          "legendFormat": "{% raw %}{{component}}{% endraw %} / {% raw %}{{check_id}}{% endraw %} {% raw %}{{state}}{% endraw %} {% raw %}{{alertstate}}{% endraw %}",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "\u2014",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "minWidth": 60,
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "State"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Alert state"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 85
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Severity"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 75
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Check"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 170
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Service"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Integration"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "State"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "healthy": {
+                        "text": "healthy",
+                        "color": "green"
+                      },
+                      "warning": {
+                        "text": "warning",
+                        "color": "orange"
+                      },
+                      "critical": {
+                        "text": "critical",
+                        "color": "red"
+                      },
+                      "unknown": {
+                        "text": "unknown",
+                        "color": "gray"
+                      },
+                      "pending": {
+                        "text": "pending",
+                        "color": "orange"
+                      },
+                      "firing": {
+                        "text": "firing",
+                        "color": "red"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Alert state"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "healthy": {
+                        "text": "healthy",
+                        "color": "green"
+                      },
+                      "warning": {
+                        "text": "warning",
+                        "color": "orange"
+                      },
+                      "critical": {
+                        "text": "critical",
+                        "color": "red"
+                      },
+                      "unknown": {
+                        "text": "unknown",
+                        "color": "gray"
+                      },
+                      "pending": {
+                        "text": "pending",
+                        "color": "orange"
+                      },
+                      "firing": {
+                        "text": "firing",
+                        "color": "red"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Severity"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "healthy": {
+                        "text": "healthy",
+                        "color": "green"
+                      },
+                      "warning": {
+                        "text": "warning",
+                        "color": "orange"
+                      },
+                      "critical": {
+                        "text": "critical",
+                        "color": "red"
+                      },
+                      "unknown": {
+                        "text": "unknown",
+                        "color": "gray"
+                      },
+                      "pending": {
+                        "text": "pending",
+                        "color": "orange"
+                      },
+                      "firing": {
+                        "text": "firing",
+                        "color": "red"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "instance": true,
+              "job": true,
+              "Value": true,
+              "alertname": true
+            },
+            "renameByName": {
+              "check_id": "Check",
+              "component": "Service",
+              "integration": "Integration",
+              "state": "State",
+              "alertstate": "Alert state",
+              "severity": "Severity"
+            },
+            "indexByName": {
+              "state": 0,
+              "alertstate": 0,
+              "severity": 1,
+              "check_id": 2,
+              "component": 3,
+              "integration": 4,
+              "Value": 5
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Integration health",
+      "type": "table",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "infrabox-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 10,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "infrabox:check_state{integration!=\"\"}",
+          "instant": true,
+          "legendFormat": "{% raw %}{{component}}{% endraw %} / {% raw %}{{check_id}}{% endraw %} {% raw %}{{state}}{% endraw %} {% raw %}{{alertstate}}{% endraw %}",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "\u2014",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "minWidth": 60,
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "State"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Alert state"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 85
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Severity"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 75
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Check"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 170
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Service"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Integration"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "State"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "healthy": {
+                        "text": "healthy",
+                        "color": "green"
+                      },
+                      "warning": {
+                        "text": "warning",
+                        "color": "orange"
+                      },
+                      "critical": {
+                        "text": "critical",
+                        "color": "red"
+                      },
+                      "unknown": {
+                        "text": "unknown",
+                        "color": "gray"
+                      },
+                      "pending": {
+                        "text": "pending",
+                        "color": "orange"
+                      },
+                      "firing": {
+                        "text": "firing",
+                        "color": "red"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Alert state"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "healthy": {
+                        "text": "healthy",
+                        "color": "green"
+                      },
+                      "warning": {
+                        "text": "warning",
+                        "color": "orange"
+                      },
+                      "critical": {
+                        "text": "critical",
+                        "color": "red"
+                      },
+                      "unknown": {
+                        "text": "unknown",
+                        "color": "gray"
+                      },
+                      "pending": {
+                        "text": "pending",
+                        "color": "orange"
+                      },
+                      "firing": {
+                        "text": "firing",
+                        "color": "red"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Severity"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "healthy": {
+                        "text": "healthy",
+                        "color": "green"
+                      },
+                      "warning": {
+                        "text": "warning",
+                        "color": "orange"
+                      },
+                      "critical": {
+                        "text": "critical",
+                        "color": "red"
+                      },
+                      "unknown": {
+                        "text": "unknown",
+                        "color": "gray"
+                      },
+                      "pending": {
+                        "text": "pending",
+                        "color": "orange"
+                      },
+                      "firing": {
+                        "text": "firing",
+                        "color": "red"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "instance": true,
+              "job": true,
+              "Value": true,
+              "alertname": true
+            },
+            "renameByName": {
+              "check_id": "Check",
+              "component": "Service",
+              "integration": "Integration",
+              "state": "State",
+              "alertstate": "Alert state",
+              "severity": "Severity"
+            },
+            "indexByName": {
+              "state": 0,
+              "alertstate": 0,
+              "severity": 1,
+              "check_id": 2,
+              "component": 3,
+              "integration": 4,
+              "Value": 5
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Observation age (seconds)",
+      "type": "table",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "infrabox-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "time() - infrabox:observation",
+          "instant": true,
+          "legendFormat": "{% raw %}{{component}}{% endraw %} / {% raw %}{{check_id}}{% endraw %} {% raw %}{{state}}{% endraw %} {% raw %}{{alertstate}}{% endraw %}",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "\u2014",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s",
+          "custom": {
+            "minWidth": 60,
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "State"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Alert state"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 85
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Severity"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 75
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Check"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 170
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Service"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Integration"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "State"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "healthy": {
+                        "text": "healthy",
+                        "color": "green"
+                      },
+                      "warning": {
+                        "text": "warning",
+                        "color": "orange"
+                      },
+                      "critical": {
+                        "text": "critical",
+                        "color": "red"
+                      },
+                      "unknown": {
+                        "text": "unknown",
+                        "color": "gray"
+                      },
+                      "pending": {
+                        "text": "pending",
+                        "color": "orange"
+                      },
+                      "firing": {
+                        "text": "firing",
+                        "color": "red"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Alert state"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "healthy": {
+                        "text": "healthy",
+                        "color": "green"
+                      },
+                      "warning": {
+                        "text": "warning",
+                        "color": "orange"
+                      },
+                      "critical": {
+                        "text": "critical",
+                        "color": "red"
+                      },
+                      "unknown": {
+                        "text": "unknown",
+                        "color": "gray"
+                      },
+                      "pending": {
+                        "text": "pending",
+                        "color": "orange"
+                      },
+                      "firing": {
+                        "text": "firing",
+                        "color": "red"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Severity"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "healthy": {
+                        "text": "healthy",
+                        "color": "green"
+                      },
+                      "warning": {
+                        "text": "warning",
+                        "color": "orange"
+                      },
+                      "critical": {
+                        "text": "critical",
+                        "color": "red"
+                      },
+                      "unknown": {
+                        "text": "unknown",
+                        "color": "gray"
+                      },
+                      "pending": {
+                        "text": "pending",
+                        "color": "orange"
+                      },
+                      "firing": {
+                        "text": "firing",
+                        "color": "red"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "instance": true,
+              "job": true,
+              "Value": false,
+              "alertname": true
+            },
+            "renameByName": {
+              "check_id": "Check",
+              "component": "Service",
+              "integration": "Integration",
+              "state": "State",
+              "alertstate": "Alert state",
+              "severity": "Severity"
+            },
+            "indexByName": {
+              "state": 0,
+              "alertstate": 0,
+              "severity": 1,
+              "check_id": 2,
+              "component": 3,
+              "integration": 4,
+              "Value": 5
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Host available memory",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "infrabox-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_memory_MemAvailable_bytes",
+          "instant": false,
+          "legendFormat": "Available RAM"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "UNKNOWN",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 8,
+      "title": "Filesystem free bytes",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "infrabox-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 20,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay\"}",
+          "instant": false,
+          "legendFormat": "{% raw %}{{mountpoint}}{% endraw %}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "UNKNOWN",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 9,
+      "title": "Served certificate lifetime remaining",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "infrabox-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 27,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "infrabox_certificate_remaining_seconds",
+          "instant": false,
+          "legendFormat": "{% raw %}{{service}}{% endraw %}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "UNKNOWN",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 10,
+      "title": "Recent check failures",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "infrabox-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 27,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "1 - infrabox_probe_success",
+          "instant": false,
+          "legendFormat": "{% raw %}{{component}}{% endraw %} / {% raw %}{{check_id}}{% endraw %} {% raw %}{{state}}{% endraw %} {% raw %}{{alertstate}}{% endraw %}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "UNKNOWN",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 11,
+      "title": "Monitoring evaluation errors",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "infrabox-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 34,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(prometheus_rule_evaluation_failures_total[5m])",
+          "instant": false,
+          "legendFormat": "{% raw %}{{rule_group}}{% endraw %}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "UNKNOWN",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 12,
+      "title": "Database connection use",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "infrabox-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 34,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "infrabox_postgresql_connection_ratio",
+          "instant": false,
+          "legendFormat": "Connections used"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "UNKNOWN",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "percentunit",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 13,
+      "title": "Passive provider observations and planned integrations",
+      "type": "text",
+      "gridPos": {
+        "x": 0,
+        "y": 41,
+        "w": 24,
+        "h": 5
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Model and search providers are observed only through native runtime events. Monitoring never calls a model or search provider; no recent events means **not recently verified**.\n\nTrusted Platform discovery (KRG-6) and OpenClaw-to-Gitea discovery (KRG-9): **not configured**. The canary verifies the existing isolated shell runner.\n\nWhole-host availability requires an observer outside this appliance."
+      }
+    },
+    {
+      "id": 14,
+      "title": "Observed model outcomes (no synthetic calls)",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 46,
+        "w": 12,
+        "h": 6
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "infrabox-prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (provider, outcome) (increase(openclaw_model_call_total[1h]))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Not recently verified",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 15,
+      "title": "Observed tool outcomes",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 46,
+        "w": 12,
+        "h": 6
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "infrabox-prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (tool, outcome) (increase(openclaw_tool_execution_total[1h]))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Not recently verified",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {}
+    }
+  ],
+  "links": [],
+  "annotations": {
+    "list": []
+  }
+}

@@ -1,5 +1,129 @@
 # Implementation status
 
+## KRG-15 continuous monitoring — 2026-09-12/13
+
+Implemented and deployed to the authorized existing development appliance:
+`infrabox1`, `almalinux@192.168.32.206`, AlmaLinux 10.2, using
+`inventories/development/hosts.yml` and its preserved controller inputs.
+
+The generated contract contains 47 checks and 159 Prometheus rules. Native
+node_exporter metrics and bounded fixed probes cover units, verified HTTPS,
+served certificates, host resources/security/storage, authenticated application
+dependencies, RQ workers/queues, OpenBao and certificate Agent authentication,
+OpenClaw readiness/Vault/MCP/diagnostics, Grafana datasource access, and actual
+Gitea runner execution. Basic checks and scrape/evaluation run every 30 seconds;
+integration checks run every 60 seconds; the isolated runner canary runs every
+five minutes. Its private repository retains at most 12 completed runs for one
+hour and produces no artifacts. Prometheus retains 15 days with a 2 GB size cap.
+
+Grafana provisions `InfraBox / InfraBox Health` with pending/firing alerts,
+explicit unknown/incomplete coverage, service/integration state, metrics and
+history. Alertmanager is absent. The read-only `infrabox_health` OpenClaw tool
+and host CLI use the same bounded contract. Trusted post-change verification
+requires three distinct new observations spanning at least 120 seconds.
+
+Completed checks:
+
+- Python unittest: 41 passed; Node tests: 5 passed; Ansible syntax checks passed
+  for `site.yml`, `monitoring-deploy.yml` and `acceptance-monitoring.yml`.
+- Generated rules passed pinned promtool validation and semantic fixtures for
+  healthy/pending/firing/recovery, missing/frozen/future observations and an old
+  configuration generation.
+- Live `acceptance-monitoring.yml`: `ok=5 changed=3 failed=0`. NetBox loss became
+  visible and critical, then recovered; stopping observation scheduling expired
+  cached success to unknown; Prometheus loss returned unknown; both recovered.
+  Direct Gateway socket access and registered `/tools/invoke` health calls passed.
+- Disposable canary retention acceptance reduced eight completed runs to one
+  using a temporary test limit; the configured 12-run/one-hour policy stayed
+  unchanged. Unit fixtures also prove that active runs are excluded from cleanup.
+- Monitoring rerun: `ok=63 changed=0 failed=0`; OpenClaw installation rerun:
+  `ok=22 changed=0 failed=0`. Monitoring/OpenClaw token file identities and
+  modification times, and six application container start times, were unchanged.
+- Runtime checks passed actual database/Redis TLS and runner network isolation,
+  including denial of the new metrics port. The health process is unprivileged
+  (`nobody`), has no effective capabilities, enables no-new-privileges after its
+  scoped SELinux transition, and runs with SELinux enforcing.
+- Browser verification displayed the provisioned dashboard and explicit
+  unknown/incomplete coverage during the frozen-observation fault.
+- Authorized baseline/reboot/full-verification sequence, using
+  `acceptance-reboot.yml` and its included `verify.yml`: cumulative recap
+  `ok=87 changed=2 failed=0`, no skips. TPM auto-unseal, preserved CA fingerprint,
+  actual TLS connections, certificate Agent authentication, OpenClaw token/MCP/
+  scanner contracts and runner isolation passed. NetBox needed several minutes
+  after cold boot; its health check retried and recovered normally.
+- After reboot, the actual Gateway `/tools/invoke` call returned HTTP 200,
+  `healthy`, complete coverage and all 47 checks healthy. Grafana showed
+  `Healthy / Complete` with no active alerts; metric panels rendered correctly.
+
+The first two post-reboot stabilization windows returned `inconclusive`, with no
+current issues and only two accumulated observations for `openclaw_netbox`.
+Historical Prometheus samples and the second verifier report identified transient
+MCP timeouts during those windows: the verifier correctly discarded earlier
+successful samples. Freshness and required sample counts were not relaxed.
+The verifier now also reports observed failures and unstable check IDs.
+Separate read-only diagnostics, including four measured concurrent probe rounds
+under the normal worker CPU/memory limits, completed the MCP read and client
+cleanup in 6–10 seconds. The original timeout was not reproduced in that series;
+its cause remains unconfirmed. These early failures are retained as evidence,
+not reclassified as passes.
+
+A third window was stopped after reproducing the timeout to install safe command
+diagnostics. Subsequent combined core/canary verification completed successfully
+at 22:39 UTC on September 12: all 47 affected checks, at least four distinct new
+observations, no observed failures, no unstable checks. Evidence:
+`monitoring-timeout-combined.json`. That run used the original timeouts.
+The worker now retains bounded, credential-free timeout metadata in a private
+state file so a recurrence can be diagnosed without collecting raw command output.
+
+The final monitoring application published the matching catalog/rules generation;
+its immediate repeat added 63 successful tasks and zero changes (cumulative
+recap `ok=130 changed=8 failed=0`, including baseline capture and first apply).
+Evidence: `monitoring-final-deploy-verified.log`.
+
+During a later Ansible stabilization run, safe diagnostics captured an MCP
+Podman-command timeout at 25 seconds with no structured result and no stderr.
+The enclosing host command now allows 40 seconds for process startup/teardown;
+the MCP runtime's 20-second timer and NetBox read's 10-second timer are unchanged.
+The final deployment and verification of that change are recorded in
+`monitoring-completion.log`.
+
+Final result at 22:57 UTC on September 12: **passed**, generation
+`f37d63d55856f8a8`, 47 affected checks, minimum four distinct new observations,
+no current issues and no unstable checks. A transient `grafana_datasource` failure
+was observed and recovered within the window; it established fresh successful
+observations before passing. No MCP failure was observed in this final window.
+The complete final apply/repeat/stabilization invocation exited successfully:
+`ok=131 changed=10 failed=0`; the immediate monitoring repeat itself had zero
+changes. Early timeouts and interrupted diagnostic runs remain in their original
+logs and do not count as successful acceptance.
+
+Evidence is under `artifacts/infrabox1/`: `monitoring-acceptance.log`,
+`monitoring-retention.log`, `monitoring-promtool-final.log`,
+`monitoring-idempotence.log`, `monitoring-openclaw-idempotence.log`,
+`monitoring-idempotence-before.json`, `monitoring-idempotence-after.json`,
+`monitoring-runtime-isolation.log`, `monitoring-unit-final.log`,
+`monitoring-node-final.log`, `monitoring-syntax-final.log` and
+`monitoring-stale.png`, `monitoring-reboot-final.log`,
+`monitoring-post-reboot-tool.json`, `monitoring-post-reboot-health.json`,
+`monitoring-reboot-alerts.png`, `monitoring-healthy.png` and
+`monitoring-metrics.png`. Earlier unsuccessful diagnostic/deployment logs are
+retained separately and are not acceptance evidence.
+
+The pinned OpenClaw release does not expose MCP tools through its HTTP tools
+endpoint. The fixed NetBox read therefore uses its real local MCP runtime and
+applicable tool policy; this is not full conversational authorization parity.
+No inference/provider calls or inventory writes were made by monitoring tests.
+Idle providers are shown as not recently verified; future KRG-6/KRG-9 capabilities
+are not configured. Whole-host loss still requires an external observer.
+
+The live failure checks above do not claim the plan's entire exploratory matrix
+(separate token revocation, every service outage, loaded-runner queueing, or
+interrupted generation activation). These were not separately injected. Normal
+certificate lifetimes and controller CA/TPM identities were preserved; certificate
+expiry and destructive initialization tests were not part of this change.
+Operator configuration, implementation decisions and runbooks are in
+[docs/monitoring.md](docs/monitoring.md).
+
 ## OpenClaw NetBox onboarding — 2026-09-12
 
 Implemented and deployed to the existing development appliance using

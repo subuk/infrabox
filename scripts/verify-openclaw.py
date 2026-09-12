@@ -29,7 +29,7 @@ require(container['HostConfig']['NanoCpus'] > 0, 'container CPU limit missing')
 require('no-new-privileges' in container['HostConfig']['SecurityOpt'], 'no-new-privileges absent')
 ports = container['NetworkSettings']['Ports']
 require(ports[str(port) + '/tcp'] == [{'HostIp': '127.0.0.1', 'HostPort': str(port)}], 'Gateway exposed beyond loopback')
-allowed = {config_dir + '/openclaw.json', config_dir + '/secrets', storage_dir + '/state', storage_dir + '/workspace', ca_path}
+allowed = {'/run/infrabox-health', config_dir + '/openclaw.json', config_dir + '/secrets', storage_dir + '/state', storage_dir + '/workspace', ca_path}
 configuration = json.loads(Path(config_dir, 'openclaw.json').read_text())
 netbox_enabled = 'netbox' in configuration.get('mcp', {}).get('servers', {})
 scanner_enabled = configuration['plugins']['entries'].get('infrabox-subnet-scan', {}).get('enabled', False)
@@ -39,13 +39,13 @@ if netbox_enabled:
     allowed.add(config_dir + '/skills/netbox-onboarding')
 require({m['Source'] for m in container['Mounts']} == allowed, 'unexpected container mount')
 for mount in container['Mounts']:
-    if mount['Source'] in {config_dir + '/openclaw.json', config_dir + '/secrets', ca_path, config_dir + '/skills/netbox-onboarding', '/run/infrabox-scanner'}:
+    if mount['Source'] in {config_dir + '/openclaw.json', config_dir + '/secrets', ca_path, config_dir + '/skills/netbox-onboarding', '/run/infrabox-scanner', '/run/infrabox-health'}:
         require(not mount['RW'], 'credential/configuration/CA mount is writable')
 for name in ['openclaw.json', 'openclaw.env', 'secrets/vault-token']:
     require(Path(config_dir, name).stat().st_mode & 0o077 == 0, 'world/group-readable configuration or secret')
 require({'exec', 'process', 'browser', 'nodes', 'terminal'} <= set(configuration['tools']['deny']), 'execution tool denials missing')
 web_search_enabled = configuration['tools'].get('web', {}).get('search', {}).get('enabled', False)
-expected_additions = (['read'] if netbox_enabled else []) + (['infrabox_scan_subnet'] if scanner_enabled else []) + (['web_search'] if web_search_enabled else [])
+expected_additions = (['read'] if netbox_enabled else []) + ['infrabox_health'] + (['infrabox_scan_subnet'] if scanner_enabled else []) + (['web_search'] if web_search_enabled else [])
 require(configuration['tools'].get('alsoAllow', []) == expected_additions, 'unexpected tool profile additions')
 if web_search_enabled:
     require('provider' not in configuration['tools']['web']['search'], 'managed provider overrides native OpenAI search')

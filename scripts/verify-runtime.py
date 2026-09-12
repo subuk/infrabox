@@ -31,12 +31,12 @@ except HTTPError as error:
     assert error.code == 400, 'Unexpected plaintext listener response'
 nginx = run(['nginx', '-T'])
 assert 'proxy_ssl_verify on;' in nginx
-runner = json.loads(run(['podman', 'inspect', 'gitea-runner']))[0]
+runner = json.loads(run(['podman', 'inspect', 'gitea-runner', '--format', '{"NetworkSettings":{"Networks":{{json .NetworkSettings.Networks}}},"Mounts":{{json .Mounts}}}']))
 assert set(runner['NetworkSettings']['Networks']) == {'infrabox-runner'}
 assert all('sock' not in m['Destination'] for m in runner['Mounts'])
 assert int(run(['podman', 'exec', 'gitea-runner', 'cat', '/proc/self/uid_map']).split()[1]) != 0
 for name, port in [('postgresql', 5432), ('redis', 6379)]:
-    info = json.loads(run(['podman', 'inspect', name]))[0]
+    info = json.loads(run(['podman', 'inspect', name, '--format', '{"NetworkSettings":{"Networks":{{json .NetworkSettings.Networks}}},"HostConfig":{"PortBindings":{{json .HostConfig.PortBindings}}}}']))
     assert not info['HostConfig']['PortBindings'], name + ' publishes a host port'
     address = info['NetworkSettings']['Networks']['infrabox']['IPAddress']
     result = subprocess.run(['podman', 'exec', 'gitea-runner', 'timeout', '3', 'nc', '-w', '2', address, str(port)],
@@ -47,4 +47,18 @@ for service, suffix in [('git', '/api/healthz'), ('netbox', '/login/')]:
 for service in ['vault', 'grafana', 'claw']:
     result = subprocess.run(['podman', 'exec', 'gitea-runner', 'wget', '-S', '-O', '/dev/null', '-T', '10', 'https://' + (claw_hostname if service == 'claw' else service + '.' + domain)], capture_output=True, text=True)
     assert result.returncode != 0 and '403 Forbidden' in result.stderr, service + ' runner restriction failed'
+if Path('/etc/infrabox/monitoring/catalog.json').exists():
+    for unit in ['infrabox-node-exporter','infrabox-health','infrabox-checks.timer','infrabox-canary.timer']:
+        run(['systemctl','is-active',unit])
+    address=json.loads(run(['podman','network','inspect','infrabox']))[0]['subnets'][0]['gateway']
+    listeners=run(['ss','-H','-lnt','( sport = :9100 )']).splitlines()
+    assert len(listeners)==1 and listeners[0].split()[3]==address+':9100', 'Exporter listener is not backend-only'
+    result=subprocess.run(['podman','exec','gitea-runner','timeout','3','nc','-w','2',address,'9100'],input='',capture_output=True,text=True)
+    assert result.returncode in [1,124,143], 'Runner can reach private host metrics'
+    pid=run(['systemctl','show','infrabox-health','-p','MainPID','--value']).strip()
+    status=dict(line.split(':',1) for line in Path('/proc/'+pid+'/status').read_text().splitlines() if ':' in line)
+    assert status['NoNewPrivs'].strip()=='1' and int(status['CapEff'].strip(),16)==0
+    assert set(status['Uid'].split())=={'65534'}
+    assert ':container_t:' in Path('/proc/'+pid+'/attr/current').read_text()
+    print('Monitoring listener/runner isolation and unprivileged SELinux health process passed.')
 print('Certificate keys/SANs, active services, verified nginx upstream, and runner isolation passed.')

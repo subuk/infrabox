@@ -1,0 +1,15 @@
+---
+- name: Install monitoring runtime
+  ansible.builtin.import_tasks: install.yml
+  tags: [install]
+- name: Configure monitoring contracts
+  ansible.builtin.import_tasks: configure.yml
+  tags: [configure]
+- name: Start monitoring services
+  ansible.builtin.import_tasks: service.yml
+  when: integration_checks_activate | default(true) | bool
+  tags: [service]
+- name: Verify monitoring services
+  ansible.builtin.import_tasks: verify.yml
+  when: integration_checks_activate | default(true) | bool
+  tags: [verify]

@@ -1,0 +1,8 @@
+[Unit]
+Description=Check runner execution and expire canary history
+[Timer]
+OnBootSec=60s
+OnUnitActiveSec=300s
+AccuracySec=1s
+[Install]
+WantedBy=timers.target

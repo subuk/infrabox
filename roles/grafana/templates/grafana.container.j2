@@ -15,6 +15,8 @@ EnvironmentFile={{ infrabox_config_root }}/grafana/grafana.env
 Volume={{ infrabox_storage_root }}/grafana:/var/lib/grafana:Z
 Volume={{ infrabox_config_root }}/grafana/datasources:/etc/grafana/provisioning/datasources:ro,Z
 Volume={{ infrabox_root_ca_path }}:/run/infrabox-ca/root-ca.crt:ro,z
+Volume={{ infrabox_config_root }}/grafana/dashboard-providers:/etc/grafana/provisioning/dashboards:ro,Z
+Volume={{ infrabox_config_root }}/grafana/dashboards:/etc/grafana/infrabox-dashboards:ro,Z
 [Service]
 Restart=on-failure
 TimeoutStartSec=300

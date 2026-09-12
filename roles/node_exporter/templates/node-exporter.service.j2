@@ -1,0 +1,18 @@
+[Unit]
+Description=InfraBox host metrics
+After=network-online.target infrabox-network.service
+Wants=network-online.target
+[Service]
+User=infrabox-node-exporter
+ExecStart=/usr/local/libexec/node_exporter-{{ node_exporter_version }}.linux-amd64/node_exporter --web.listen-address={{ node_exporter_address }}:9100 --collector.textfile.directory=/var/lib/infrabox-node-exporter --collector.systemd --collector.systemd.unit-include=(openbao.*|postgresql.*|redis.*|gitea.*|netbox.*|nginx.*|prometheus.*|grafana.*|openclaw.*|infrabox.*)
+Restart=on-failure
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+MemoryMax=128M
+CPUQuota=20%
+[Install]
+WantedBy=multi-user.target

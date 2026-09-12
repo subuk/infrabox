@@ -1,0 +1,108 @@
+---
+- name: Require bounded canary retention
+  ansible.builtin.assert:
+    that:
+      - integration_checks_canary_keep | int >= 1
+      - integration_checks_canary_keep | int <= 24
+      - integration_checks_canary_max_age | int >= 300
+      - integration_checks_canary_max_age | int <= 86400
+- name: Identify the configured persistent storage mount
+  ansible.builtin.command:
+    argv: [findmnt, -J, -T, '{{ infrabox_storage_root }}', -o, 'SOURCE,TARGET']
+  register: integration_checks_mount
+  changed_when: false
+- name: Preserve the initial persistent storage identity
+  ansible.builtin.copy:
+    dest: '{{ infrabox_config_root }}/monitoring/storage.json'
+    content: '{{ integration_checks_mount.stdout }}'
+    force: false
+    mode: '0644'
+- name: Read expected persistent storage identity
+  ansible.builtin.slurp:
+    src: '{{ infrabox_config_root }}/monitoring/storage.json'
+  register: integration_checks_expected_mount
+- name: Generate staged catalog and rules
+  ansible.builtin.command:
+    argv: [python3, /usr/local/libexec/infrabox-monitoring/configure.py]
+    stdin: '{{ integration_checks_settings | to_json }}'
+  vars:
+    integration_checks_settings:
+      output: '{{ infrabox_config_root }}/monitoring/staged'
+      probes_implementation: '{{ (lookup("ansible.builtin.file", role_path ~ "/files/worker.py") ~ lookup("ansible.builtin.file", role_path ~ "/files/netbox-probe.py") ~ lookup("ansible.builtin.file", role_path ~ "/files/openclaw-probe.mjs")) | hash("sha256") }}'
+      prometheus_configuration: '{{ lookup("ansible.builtin.file", playbook_dir ~ "/roles/prometheus/templates/prometheus.yml.j2") | hash("sha256") }}'
+      node_exporter_address: '{{ node_exporter_address }}'
+      domain: '{{ infrabox_domain }}'
+      certificate_agent_address: '{{ openbao_agent_openbao_address | default("https://openbao." ~ infrabox_internal_domain ~ ":8200") }}'
+      claw_host: '{{ openclaw_hostname | default("claw." ~ infrabox_domain) }}'
+      ca: '{{ infrabox_root_ca_path }}'
+      storage: '{{ infrabox_storage_root }}'
+      storage_source: '{{ (integration_checks_expected_mount.content | b64decode | from_json).filesystems[0].source }}'
+      storage_mount: '{{ (integration_checks_expected_mount.content | b64decode | from_json).filesystems[0].target }}'
+      netbox: '{{ openclaw_netbox_enabled | default(true) | bool }}'
+      scanner: '{{ openclaw_subnet_scan_enabled | default(true) | bool }}'
+      canary: '{{ integration_checks_canary_enabled | bool }}'
+      canary_keep: '{{ integration_checks_canary_keep | int }}'
+      canary_max_age: '{{ integration_checks_canary_max_age | int }}'
+      canary_queue_timeout: '{{ integration_checks_canary_queue_timeout | int }}'
+      cert_warn: '{{ integration_checks_cert_warn_seconds | int }}'
+      cert_critical: '{{ integration_checks_cert_critical_seconds | int }}'
+  register: integration_checks_generated
+  changed_when: (integration_checks_generated.stdout | from_json).changed
+- name: Provision protected monitor identities and fixture workflow
+  ansible.builtin.command:
+    argv: [python3, /usr/local/libexec/infrabox-monitoring/provision.py]
+    stdin: '{{ integration_checks_provision | to_json }}'
+  vars:
+    integration_checks_provision:
+      domain: '{{ infrabox_domain }}'
+      ca: '{{ infrabox_root_ca_path }}'
+      canary: '{{ integration_checks_canary_enabled | bool }}'
+      secrets_dir: '{{ infrabox_config_root }}/monitoring/secrets'
+      workflow: /usr/local/libexec/infrabox-monitoring/canary.yml
+      root_token: '{{ (lookup("ansible.builtin.file", playbook_dir ~ "/.secrets/" ~ inventory_hostname ~ "/openbao-init.json") | from_json).root_token }}'
+      gitea_password: '{{ gitea_admin_password }}'
+      grafana_password: '{{ grafana_admin_password }}'
+  register: integration_checks_credentials
+  changed_when: integration_checks_credentials.rc == 0 and (integration_checks_credentials.stdout | from_json).changed
+  failed_when: false
+  no_log: true
+- name: Require successful monitor provisioning with sanitized diagnostics
+  ansible.builtin.assert:
+    that: integration_checks_credentials.rc == 0
+    fail_msg: '{{ integration_checks_credentials.stderr }}'
+- name: Read local SELinux file-context overrides
+  ansible.builtin.command: semanage fcontext -l -C
+  register: integration_checks_contexts
+  changed_when: false
+- name: Label only public health catalog and socket for container-domain access
+  ansible.builtin.command:
+    argv: [semanage, fcontext, '{{ "-m" if item in integration_checks_contexts.stdout else "-a" }}', -t, container_file_t, '{{ item }}']
+  loop: ['/var/lib/infrabox-monitoring-public(/.*)?', '/run/infrabox-health(/.*)?']
+  when: not (integration_checks_contexts.stdout is search('(?m)^' ~ (item | regex_escape) ~ '\s+.*container_file_t:s0\s*$'))
+  changed_when: true
+- name: Configure monitoring runtime directories
+  ansible.builtin.copy:
+    dest: /etc/tmpfiles.d/infrabox-monitoring.conf
+    mode: '0644'
+    content: |
+      d /run/infrabox-health 0750 nobody 1000 -
+      z /run/infrabox-health - - - -
+- name: Create runtime directories
+  ansible.builtin.file:
+    path: /run/infrabox-health
+    state: directory
+    owner: nobody
+    group: '1000'
+    mode: '0750'
+    setype: container_file_t
+- name: Restore scoped public health SELinux contexts
+  ansible.builtin.command: restorecon -vRF /var/lib/infrabox-monitoring-public /run/infrabox-health
+  register: integration_checks_relabel
+  changed_when: integration_checks_relabel.stdout | length > 0
+- name: Install native worker, canary and health units
+  ansible.builtin.template:
+    src: '{{ item }}.j2'
+    dest: '/etc/systemd/system/{{ item }}'
+    mode: '0644'
+  loop: [infrabox-checks.service, infrabox-checks.timer, infrabox-canary.service, infrabox-canary.timer, infrabox-health.service]
+  register: integration_checks_units

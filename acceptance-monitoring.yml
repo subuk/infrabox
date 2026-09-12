@@ -1,0 +1,23 @@
+---
+- name: Exercise continuous monitoring and recover from authorized service failures
+  hosts: infrabox
+  become: true
+  tasks:
+    - name: Install authorized failure acceptance helper
+      ansible.builtin.copy:
+        src: scripts/test-monitoring-live.py
+        dest: /run/infrabox-test-monitoring.py
+        mode: '0700'
+    - name: Run bounded failure and recovery acceptance
+      ansible.builtin.command: python3 /run/infrabox-test-monitoring.py
+      async: 1500
+      poll: 5
+      register: monitoring_acceptance
+      changed_when: true
+    - name: Report sanitized acceptance results
+      ansible.builtin.debug:
+        var: monitoring_acceptance.stdout_lines
+    - name: Remove completed acceptance helper
+      ansible.builtin.file:
+        path: /run/infrabox-test-monitoring.py
+        state: absent

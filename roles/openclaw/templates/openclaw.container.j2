@@ -28,6 +28,7 @@ Volume={{ infrabox_root_ca_path }}:/run/infrabox-ca/root-ca.crt:ro,z
 {% if openclaw_subnet_scan_enabled | bool %}
 Volume=/run/infrabox-scanner:/run/infrabox-scanner:ro,z
 {% endif %}
+Volume=/run/infrabox-health:/run/infrabox-health:ro,z
 Exec=node openclaw.mjs gateway
 [Service]
 Restart=on-failure

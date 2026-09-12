@@ -9,9 +9,9 @@ NoNewPrivileges=true
 Network=infrabox.network
 NetworkAlias=prometheus.{{ infrabox_internal_domain }}
 PublishPort=127.0.0.1:9090:9090
-Volume={{ infrabox_config_root }}/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro,Z
+Volume={{ infrabox_config_root }}/prometheus:/etc/prometheus:ro,z
 Volume={{ infrabox_storage_root }}/prometheus:/prometheus:Z
-Exec=--config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus --storage.tsdb.retention.time={{ prometheus_retention }}
+Exec=--config.file=/etc/prometheus/current/prometheus.yml --storage.tsdb.path=/prometheus --storage.tsdb.retention.time={{ prometheus_retention }} --storage.tsdb.retention.size={{ prometheus_retention_size }}
 [Service]
 Restart=on-failure
 [Install]

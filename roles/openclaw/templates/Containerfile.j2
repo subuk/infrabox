@@ -8,8 +8,18 @@ COPY infrabox-netbox-mcp /usr/local/bin/infrabox-netbox-mcp
 COPY verify-netbox-mcp.mjs /opt/infrabox/verify-netbox-mcp.mjs
 RUN chmod 0755 /usr/local/bin/infrabox-netbox-mcp
 {% endif %}
+COPY diagnostics-package.json /opt/infrabox/diagnostics/package.json
+COPY diagnostics-package-lock.json /opt/infrabox/diagnostics/package-lock.json
+RUN cd /opt/infrabox/diagnostics && npm ci --omit=dev --ignore-scripts --legacy-peer-deps --no-audit --no-fund && npm cache clean --force
 USER 1000:1000
 {% if openclaw_subnet_scan_enabled | bool %}
 COPY index.mjs openclaw.plugin.json /opt/infrabox/plugins/subnet-scan/
 COPY scanner-package.json /opt/infrabox/plugins/subnet-scan/package.json
 {% endif %}
+
+COPY health-index.mjs /opt/infrabox/plugins/health/index.mjs
+COPY health-package.json /opt/infrabox/plugins/health/package.json
+COPY health-plugin.json /opt/infrabox/plugins/health/openclaw.plugin.json
+COPY openclaw-probe.mjs /opt/infrabox/monitoring/openclaw-probe.mjs
+
+COPY diagnostics-install.mjs /opt/infrabox/diagnostics/install.mjs

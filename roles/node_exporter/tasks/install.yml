@@ -1,0 +1,19 @@
+---
+- name: Create exporter system account
+  ansible.builtin.user:
+    name: infrabox-node-exporter
+    system: true
+    create_home: false
+    shell: /sbin/nologin
+- name: Download checksum-pinned exporter archive
+  ansible.builtin.get_url:
+    url: 'https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz'
+    dest: '/var/tmp/infrabox-node-exporter-{{ node_exporter_version }}.tar.gz'
+    checksum: 'sha256:{{ node_exporter_sha256 }}'
+    mode: '0644'
+- name: Extract pinned exporter
+  ansible.builtin.unarchive:
+    src: '/var/tmp/infrabox-node-exporter-{{ node_exporter_version }}.tar.gz'
+    dest: /usr/local/libexec
+    remote_src: true
+    creates: '/usr/local/libexec/node_exporter-{{ node_exporter_version }}.linux-amd64/node_exporter'

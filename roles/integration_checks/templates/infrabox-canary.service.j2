@@ -1,0 +1,11 @@
+[Unit]
+Description=InfraBox runner canary and bounded history cleanup
+After=network-online.target
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/libexec/infrabox-monitoring/worker.py --lane canary
+TimeoutStartSec=210
+KillMode=control-group
+UMask=0077
+MemoryMax=128M
+CPUQuota=20%

@@ -1,0 +1,13 @@
+---
+- name: Capture health before monitoring deployment
+  hosts: infrabox
+  become: true
+  tasks:
+    - name: Check existing monitoring adapter
+      ansible.builtin.stat:
+        path: /usr/local/libexec/infrabox-monitoring/health.py
+      register: monitoring_existing
+    - name: Capture existing health baseline
+      ansible.builtin.script: scripts/verify-monitoring.py --baseline
+      when: monitoring_existing.stat.exists
+      changed_when: true

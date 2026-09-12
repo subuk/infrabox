@@ -62,3 +62,13 @@
       - (openclaw_netbox_probe.stdout | from_json).servers.netbox.tools == 5
       - (openclaw_netbox_probe.stdout | from_json).diagnostics | length == 0
   when: openclaw_netbox_enabled | bool
+
+- name: Read native plugin tool registrations without inference
+  ansible.builtin.command:
+    argv: [podman, exec, openclaw, node, openclaw.mjs, plugins, list, --json]
+  register: openclaw_registered_plugins
+  changed_when: false
+- name: Require registered read-only health tool
+  ansible.builtin.assert:
+    that:
+      - "'infrabox_health' in ((openclaw_registered_plugins.stdout | from_json).plugins | selectattr('id', 'equalto', 'infrabox-health') | first).toolNames"

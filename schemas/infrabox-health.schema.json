@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "InfraBox health",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "coverage_complete",
+    "generated_at",
+    "generation",
+    "checks",
+    "issues_total",
+    "truncated",
+    "issues"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "status": {
+      "enum": [
+        "healthy",
+        "warning",
+        "critical",
+        "unknown"
+      ]
+    },
+    "coverage_complete": {
+      "type": "boolean"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "generation": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "expected",
+        "healthy",
+        "warning",
+        "critical",
+        "unknown"
+      ],
+      "properties": {
+        "expected": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "healthy": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "warning": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "critical": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unknown": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "issues_total": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "truncated": {
+      "type": "boolean"
+    },
+    "issues": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "component",
+          "integration",
+          "state",
+          "alert_state",
+          "reason",
+          "summary",
+          "last_observed_at",
+          "runbook_id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "component": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "integration": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "runbook_id": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "state": {
+            "enum": [
+              "healthy",
+              "warning",
+              "critical",
+              "unknown"
+            ]
+          },
+          "alert_state": {
+            "enum": [
+              "pending",
+              "firing",
+              "unknown"
+            ]
+          },
+          "last_observed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      }
+    }
+  }
+}

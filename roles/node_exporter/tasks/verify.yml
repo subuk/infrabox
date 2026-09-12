@@ -1,0 +1,4 @@
+---
+- name: Check native exporter unit
+  ansible.builtin.command: systemctl is-active infrabox-node-exporter
+  changed_when: false

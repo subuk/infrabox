@@ -1,0 +1,4 @@
+---
+- name: Check continuously scheduled monitoring
+  ansible.builtin.command: systemctl is-active infrabox-checks.timer infrabox-canary.timer infrabox-health.service
+  changed_when: false

@@ -1,0 +1,7 @@
+---
+integration_checks_canary_enabled: true
+integration_checks_canary_keep: 12
+integration_checks_canary_max_age: 3600
+integration_checks_canary_queue_timeout: 900
+integration_checks_cert_warn_seconds: 86400
+integration_checks_cert_critical_seconds: 21600

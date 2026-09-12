@@ -27,3 +27,8 @@ listener "unix" {
   socket_user = "{{ openbao_uid }}"
   socket_group = "{{ openbao_gid }}"
 }
+
+telemetry {
+  disable_hostname = true
+  prometheus_retention_time = "5m"
+}

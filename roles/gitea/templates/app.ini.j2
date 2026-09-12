@@ -40,3 +40,7 @@ MODE = console
 LEVEL = Info
 [oauth2]
 JWT_SECRET = {{ (gitea_signing_secrets.stdout | from_json).JWT_SECRET or ((gitea_secret_key ~ ':oauth2') | hash('sha256')) }}
+
+[metrics]
+ENABLED = true
+TOKEN = {{ (gitea_internal_token ~ ':infrabox-metrics') | hash('sha256') }}

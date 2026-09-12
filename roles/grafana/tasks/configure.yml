@@ -31,6 +31,32 @@
           isDefault: true
           editable: false
   notify: Restart grafana
+- name: Create provisioned dashboard directories
+  ansible.builtin.file:
+    path: '{{ infrabox_config_root }}/grafana/{{ item }}'
+    state: directory
+    mode: '0755'
+  loop: [dashboards, dashboard-providers]
+- name: Provision InfraBox dashboard provider
+  ansible.builtin.copy:
+    dest: '{{ infrabox_config_root }}/grafana/dashboard-providers/infrabox.yml'
+    mode: '0644'
+    content: |
+      apiVersion: 1
+      providers:
+        - name: InfraBox
+          folder: InfraBox
+          type: file
+          disableDeletion: true
+          editable: false
+          options:
+            path: /etc/grafana/infrabox-dashboards
+  notify: Restart grafana
+- name: Provision InfraBox Health dashboard
+  ansible.builtin.template:
+    src: infrabox-health.json.j2
+    dest: '{{ infrabox_config_root }}/grafana/dashboards/infrabox-health.json'
+    mode: '0644'
 - name: Render protected Grafana configuration
   ansible.builtin.template:
     src: grafana.env.j2

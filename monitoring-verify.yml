@@ -1,0 +1,20 @@
+---
+- name: Verify fresh post-deployment observations
+  hosts: infrabox
+  become: true
+  tasks:
+    - name: Install trusted stabilization verifier
+      ansible.builtin.copy:
+        src: scripts/verify-monitoring.py
+        dest: /usr/local/libexec/infrabox-monitoring/verify.py
+        mode: '0755'
+    - name: Await bounded health stabilization
+      ansible.builtin.command:
+        argv: [python3, /usr/local/libexec/infrabox-monitoring/verify.py, --component, monitoring, --revision, '{{ monitoring_revision | default("unspecified") }}']
+      async: 330
+      poll: 5
+      changed_when: true
+      register: monitoring_stabilization
+    - name: Report sanitized stabilization evidence
+      ansible.builtin.debug:
+        msg: '{{ monitoring_stabilization.stdout | from_json }}'

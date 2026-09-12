@@ -2,3 +2,4 @@
 prometheus_image: quay.io/prometheus/prometheus:v3.13.3
 prometheus_uid: 65534
 prometheus_retention: 15d
+prometheus_retention_size: 2GB

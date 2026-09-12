@@ -1,0 +1,19 @@
+[Unit]
+Description=InfraBox bounded read-only health API
+After=network-online.target
+[Service]
+User=nobody
+Group=1000
+SELinuxContext=system_u:system_r:container_t:s0
+ExecStart=/usr/bin/setpriv --no-new-privs /usr/bin/python3 /usr/local/libexec/infrabox-monitoring/health.py --config /var/lib/infrabox-monitoring-public/catalog.json --socket /run/infrabox-health/api.sock
+Restart=on-failure
+# setpriv applies NNP after the SELinux domain transition; pre-exec NNP blocks it.
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/run/infrabox-health
+MemoryMax=128M
+CPUQuota=20%
+TasksMax=32
+[Install]
+WantedBy=multi-user.target

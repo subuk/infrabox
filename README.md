@@ -170,7 +170,12 @@ controller inputs. Trust the appliance's public RootCA in clients before using
 HTTPS. The CA is `/etc/infrabox/pki/root-ca.crt` on the VM and is exported by
 PKI configuration to `artifacts/infrabox1/root-ca.crt` on the controller. It
 contains no private key. Gitea SSH uses port 2222. Prometheus is available to Grafana internally;
-no dashboards are installed.
+the provisioned **InfraBox / InfraBox Health** dashboard shows continuous service
+and integration checks, freshness, resource metrics and Prometheus pending/firing
+alerts. Alertmanager is not configured. See [monitoring operations](docs/monitoring.md)
+for cadence, runbooks, the read-only `infrabox_health` tool and deployment acceptance.
+The private Gitea canary runs every five minutes and retains at most 12 completed
+runs for one hour, with no artifacts.
 
 The runner label is `infrabox-shell`. Jobs execute in its container with shell
 and Git available. This MVP does not provide Node actions or Docker execution.

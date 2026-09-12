@@ -1,0 +1,13 @@
+---
+- name: Install host exporter
+  ansible.builtin.import_tasks: install.yml
+  tags: [install]
+- name: Configure host exporter
+  ansible.builtin.import_tasks: configure.yml
+  tags: [configure]
+- name: Start host exporter
+  ansible.builtin.import_tasks: service.yml
+  tags: [service]
+- name: Verify host exporter
+  ansible.builtin.import_tasks: verify.yml
+  tags: [verify]

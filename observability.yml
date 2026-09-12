@@ -1,9 +1,29 @@
 ---
-- name: Deploy minimal monitoring
+- name: Deploy continuous appliance monitoring
   hosts: infrabox
   become: true
   roles:
-    - role: prometheus
-      tags: [prometheus]
+    - role: node_exporter
+      tags: [node_exporter]
     - role: grafana
       tags: [grafana]
+    - role: integration_checks
+      integration_checks_activate: false
+      tags: [integration_checks]
+    - role: prometheus
+      tags: [prometheus]
+  tasks:
+    - name: Start monitoring after validated catalog and rules are active
+      ansible.builtin.include_role:
+        name: integration_checks
+        tasks_from: service
+        apply:
+          tags: [integration_checks, service]
+      tags: [integration_checks, service]
+    - name: Verify monitoring schedulers
+      ansible.builtin.include_role:
+        name: integration_checks
+        tasks_from: verify
+        apply:
+          tags: [integration_checks, verify]
+      tags: [integration_checks, verify]

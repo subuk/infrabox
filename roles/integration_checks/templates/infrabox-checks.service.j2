@@ -1,0 +1,11 @@
+[Unit]
+Description=InfraBox fixed integration observations
+After=network-online.target
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/libexec/infrabox-monitoring/worker.py
+TimeoutStartSec=90
+KillMode=control-group
+UMask=0077
+MemoryMax=256M
+CPUQuota=50%

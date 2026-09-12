@@ -1,4 +1,5 @@
 {
+  "diagnostics": {"enabled": true},
   "gateway": {
     "mode": "local", "bind": "lan", "port": {{ openclaw_port }},
     "publicOrigin": {{ ("https://" ~ openclaw_hostname) | to_json }},
@@ -11,7 +12,7 @@
   "agents": {"defaults": {"workspace": "/home/node/.openclaw/workspace", "sandbox": {"mode": "off"}}},
 {% if openclaw_netbox_enabled | bool %}
   "tools": {
-    "profile": "messaging", "alsoAllow": {{ (["read"] + (["infrabox_scan_subnet"] if openclaw_subnet_scan_enabled | bool else []) + (["web_search"] if openclaw_web_search_enabled | bool else [])) | to_json }}, "fs": {"workspaceOnly": true},
+    "profile": "messaging", "alsoAllow": {{ (["read", "infrabox_health"] + (["infrabox_scan_subnet"] if openclaw_subnet_scan_enabled | bool else []) + (["web_search"] if openclaw_web_search_enabled | bool else [])) | to_json }}, "fs": {"workspaceOnly": true},
     "web": {"search": {"enabled": {{ openclaw_web_search_enabled | bool | to_json }}}},
     "deny": ["exec", "process", "browser", "nodes", "terminal", "write", "edit", "apply_patch",
       "secrets", "sessions", "sessions_list", "sessions_history", "sessions_search", "conversations_list",
@@ -24,15 +25,13 @@
   }}},
   "skills": {"allowBundled": [], "entries": {"netbox-onboarding": {"enabled": true}}},
 {% else %}
-  "tools": {"profile": "minimal", "alsoAllow": {{ ((["infrabox_scan_subnet"] if openclaw_subnet_scan_enabled | bool else []) + (["web_search"] if openclaw_web_search_enabled | bool else [])) | to_json }},
+  "tools": {"profile": "minimal", "alsoAllow": {{ (["infrabox_health"] + (["infrabox_scan_subnet"] if openclaw_subnet_scan_enabled | bool else []) + (["web_search"] if openclaw_web_search_enabled | bool else [])) | to_json }},
     "web": {"search": {"enabled": {{ openclaw_web_search_enabled | bool | to_json }}}},
     "deny": ["exec", "process", "browser", "nodes", "terminal"]},
 {% endif %}
-  "plugins": {"allow": {{ (["vault"] + (["infrabox-subnet-scan"] if openclaw_subnet_scan_enabled | bool else []) + (["openai"] if openclaw_web_search_enabled | bool or 'openai' in openclaw_model_providers else [])) | to_json }},
-{% if openclaw_subnet_scan_enabled | bool %}
-    "load": {"paths": ["/opt/infrabox/plugins/subnet-scan"]},
-{% endif %}
-    "entries": {"vault": {"enabled": true}{% if openclaw_subnet_scan_enabled | bool %}, "infrabox-subnet-scan": {"enabled": true}{% endif %}{% if openclaw_web_search_enabled | bool or 'openai' in openclaw_model_providers %}, "openai": {"enabled": true}{% endif %}}},
+  "plugins": {"allow": {{ (["vault", "diagnostics-prometheus", "infrabox-health"] + (["infrabox-subnet-scan"] if openclaw_subnet_scan_enabled | bool else []) + (["openai"] if openclaw_web_search_enabled | bool or 'openai' in openclaw_model_providers else [])) | to_json }},
+    "load": {"paths": {{ (["/opt/infrabox/plugins/health"] + (["/opt/infrabox/plugins/subnet-scan"] if openclaw_subnet_scan_enabled | bool else [])) | to_json }}},
+    "entries": {"diagnostics-prometheus": {"enabled": true}, "infrabox-health": {"enabled": true}, "vault": {"enabled": true}{% if openclaw_subnet_scan_enabled | bool %}, "infrabox-subnet-scan": {"enabled": true}{% endif %}{% if openclaw_web_search_enabled | bool or 'openai' in openclaw_model_providers %}, "openai": {"enabled": true}{% endif %}}},
   "secrets": {"providers": {"vault": {"source": "exec", "pluginIntegration": {"pluginId": "vault", "integrationId": "vault"}}}},
   "models": {"providers": {{ openclaw_model_providers | to_json }}}
 }

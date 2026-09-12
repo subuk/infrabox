@@ -1,0 +1,26 @@
+{
+  "id": "infrabox-health",
+  "name": "InfraBox Health",
+  "description": "Read bounded continuous appliance health without model-driven probes",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  },
+  "categories": [
+    "tools"
+  ],
+  "contracts": {
+    "tools": [
+      "infrabox_health"
+    ]
+  },
+  "activation": {
+    "onStartup": true
+  },
+  "toolMetadata": {
+    "infrabox_health": {
+      "optional": true
+    }
+  }
+}

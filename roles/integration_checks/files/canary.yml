@@ -1,0 +1,16 @@
+name: InfraBox canary
+on:
+  workflow_dispatch:
+jobs:
+  smoke:
+    runs-on: infrabox-shell
+    timeout-minutes: 1
+    steps:
+      - name: Verify isolated shell runner
+        run: |
+          test ! -S /var/run/docker.sock
+          test ! -S /run/podman/podman.sock
+          git --version >/dev/null
+          printf 'InfraBox canary passed\n'
+# No artifacts or checkout. Monitor deletes completed runs older than one hour
+# and keeps at most twelve completed runs in this dedicated repository.
