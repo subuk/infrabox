@@ -1,0 +1,7 @@
+#!/bin/bash
+set -euo pipefail
+export BAO_ADDR={{ openclaw_openbao_address | quote }}
+export BAO_CACERT={{ infrabox_root_ca_path | quote }}
+BAO_TOKEN=$(cat {{ (openclaw_config_dir ~ '/secrets/vault-token') | quote }})
+export BAO_TOKEN
+exec /usr/local/bin/bao token renew -format=json >/dev/null

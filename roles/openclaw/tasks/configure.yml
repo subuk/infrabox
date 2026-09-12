@@ -1,0 +1,44 @@
+---
+- name: Create restricted OpenClaw directories
+  ansible.builtin.file:
+    path: '{{ item }}'
+    state: directory
+    owner: '{{ openclaw_uid }}'
+    group: '{{ openclaw_gid }}'
+    mode: '0700'
+  loop:
+    - '{{ openclaw_config_dir }}'
+    - '{{ openclaw_config_dir }}/secrets'
+    - '{{ openclaw_storage_dir }}'
+    - '{{ openclaw_storage_dir }}/state'
+    - '{{ openclaw_storage_dir }}/workspace'
+- name: Discover the backend bridge gateway used by nginx
+  ansible.builtin.command:
+    argv: [podman, network, inspect, infrabox]
+  register: openclaw_backend_network
+  changed_when: false
+- name: Render OpenClaw configuration
+  ansible.builtin.template:
+    src: openclaw.json.j2
+    dest: '{{ openclaw_config_dir }}/openclaw.json'
+    owner: '{{ openclaw_uid }}'
+    group: '{{ openclaw_gid }}'
+    mode: '0600'
+  notify: Restart openclaw
+- name: Render protected Gateway environment
+  ansible.builtin.template:
+    src: openclaw.env.j2
+    dest: '{{ openclaw_config_dir }}/openclaw.env'
+    owner: root
+    group: root
+    mode: '0600'
+  no_log: true
+  notify: Restart openclaw
+- name: Define OpenClaw Quadlet
+  ansible.builtin.include_role:
+    name: quadlet
+    tasks_from: configure
+  vars:
+    quadlet_name: openclaw
+    quadlet_type: container
+    quadlet_definition: '{{ lookup("ansible.builtin.template", "openclaw.container.j2") }}'

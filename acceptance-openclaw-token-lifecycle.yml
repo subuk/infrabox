@@ -1,0 +1,58 @@
+---
+- name: Verify OpenClaw token replacement and revoked-token recovery
+  hosts: infrabox
+  become: true
+  tasks:
+    - name: Load and verify OpenClaw component
+      ansible.builtin.include_role:
+        name: openclaw
+        tasks_from: verify
+        public: true
+    - name: Require default period for this development lifecycle test
+      ansible.builtin.assert:
+        that: openclaw_openbao_token_period == '168h'
+    - name: Install lifecycle acceptance helper
+      ansible.builtin.copy:
+        src: scripts/test-openclaw-token-lifecycle.py
+        dest: /usr/local/libexec/infrabox/test-openclaw-token-lifecycle
+        mode: '0700'
+    - name: Record current credential
+      ansible.builtin.include_tasks: tasks/openclaw-lifecycle-check.yml
+      vars:
+        openclaw_lifecycle_action: capture
+    - name: Exercise a changed token period
+      block:
+        - name: Deploy one-hour token period
+          ansible.builtin.include_role:
+            name: openclaw
+          vars:
+            openclaw_openbao_token_period: 1h
+        - name: Verify replacement and old-token retirement
+          ansible.builtin.include_tasks: tasks/openclaw-lifecycle-check.yml
+          vars:
+            openclaw_lifecycle_action: verify
+            openclaw_lifecycle_period: 3600
+      always:
+        - name: Restore seven-day token period
+          ansible.builtin.include_role:
+            name: openclaw
+          vars:
+            openclaw_openbao_token_period: 168h
+    - name: Exercise revocation and failed native renewal
+      block:
+        - name: Revoke only the restricted OpenClaw token
+          ansible.builtin.include_tasks: tasks/openclaw-lifecycle-check.yml
+          vars:
+            openclaw_lifecycle_action: revoke
+      always:
+        - name: Repair with the normal Ansible role
+          ansible.builtin.include_role:
+            name: openclaw
+    - name: Verify revoked-token repair
+      ansible.builtin.include_tasks: tasks/openclaw-lifecycle-check.yml
+      vars:
+        openclaw_lifecycle_action: verify
+    - name: Verify repaired token renews successfully
+      ansible.builtin.systemd_service:
+        name: openclaw-token-renew.service
+        state: started

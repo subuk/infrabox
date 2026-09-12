@@ -1,0 +1,41 @@
+---
+- name: Verify OpenClaw authentication, SecretRefs, and periodic renewal
+  hosts: infrabox
+  become: true
+  tasks:
+    - name: Verify OpenClaw component
+      ansible.builtin.include_role:
+        name: openclaw
+        tasks_from: verify
+        public: true
+    - name: Install OpenClaw acceptance helper
+      ansible.builtin.copy:
+        src: scripts/test-openclaw.py
+        dest: /usr/local/libexec/infrabox/test-openclaw
+        mode: '0700'
+    - name: Run disposable OpenClaw integration acceptance
+      ansible.builtin.command:
+        argv: [python3, /usr/local/libexec/infrabox/test-openclaw]
+        stdin: '{{ openclaw_acceptance_parameters | to_json }}'
+      vars:
+        openclaw_acceptance_parameters:
+          root_token: '{{ (lookup("ansible.builtin.file", openclaw_controller_dir ~ "/openbao-init.json") | from_json).root_token }}'
+          socket: '{{ openclaw_openbao_socket }}'
+          mount: '{{ openclaw_openbao_kv_mount }}'
+          config_dir: '{{ openclaw_config_dir }}'
+          hostname: '{{ openclaw_hostname }}'
+          ca_path: '{{ infrabox_root_ca_path }}'
+          port: '{{ openclaw_port }}'
+          uid: '{{ openclaw_uid | int }}'
+          gid: '{{ openclaw_gid | int }}'
+      register: openclaw_acceptance
+      no_log: true
+      changed_when: true
+      failed_when: false
+    - name: Show sanitized acceptance results
+      ansible.builtin.debug:
+        msg: '{{ openclaw_acceptance.stdout_lines + openclaw_acceptance.stderr_lines }}'
+    - name: Require successful OpenClaw acceptance
+      ansible.builtin.assert:
+        that: openclaw_acceptance.rc == 0
+        fail_msg: OpenClaw live acceptance failed; inspect the protected result without exposing credential inputs.

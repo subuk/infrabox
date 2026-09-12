@@ -1,0 +1,7 @@
+---
+- name: Deploy certificate Agent
+  hosts: infrabox
+  become: true
+  roles:
+    - role: openbao_agent
+      tags: [openbao_agent]

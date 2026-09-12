@@ -104,3 +104,7 @@
     src: '{{ infrabox_root_ca_path }}'
     dest: '{{ playbook_dir }}/artifacts/{{ inventory_hostname }}/root-ca.crt'
     flat: true
+- name: Configure OpenClaw KV namespace and service token role
+  ansible.builtin.include_role:
+    name: openclaw
+    tasks_from: bao-configure

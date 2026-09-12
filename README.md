@@ -115,7 +115,7 @@ bootstrap. Run each stage and resolve failures before proceeding.
 .venv/bin/ansible-playbook openbao-runtime.yml -e @.secrets/infrabox1/inputs.json -e openbao_tls_enabled=false
 .venv/bin/ansible-playbook pki-bootstrap.yml -e openbao_bootstrap_initialize=true
 .venv/bin/ansible-playbook pki-bootstrap.yml
-.venv/bin/ansible-playbook agent.yml -e openbao_agent_openbao_address=http://127.0.0.1:8200
+.venv/bin/ansible-playbook certificate-agent.yml -e openbao_agent_openbao_address=http://127.0.0.1:8200
 .venv/bin/ansible-playbook host-trust.yml
 ```
 
@@ -137,7 +137,7 @@ Then apply runtime and Agent configuration:
 
 ```sh
 .venv/bin/ansible-playbook openbao-runtime.yml -e @.secrets/infrabox1/inputs.json
-.venv/bin/ansible-playbook agent.yml
+.venv/bin/ansible-playbook certificate-agent.yml
 ```
 
 Do not leave the appliance permanently in bootstrap HTTP mode. No automatic
@@ -225,7 +225,7 @@ No automatic OS upgrade is run.
 .venv/bin/ansible-playbook foundation.yml --syntax-check
 .venv/bin/ansible-playbook openbao-runtime.yml --syntax-check
 .venv/bin/ansible-playbook pki-bootstrap.yml --syntax-check
-.venv/bin/ansible-playbook agent.yml --syntax-check
+.venv/bin/ansible-playbook certificate-agent.yml --syntax-check
 .venv/bin/ansible-playbook services.yml --syntax-check
 .venv/bin/python -m unittest discover -s tests
 ```
@@ -250,3 +250,266 @@ runs normal Ansible recovery. Expect a short HTTPS outage during that test.
 Reboot acceptance verifies TPM auto-unseal, preserved CA identity, and the full
 appliance after restart. Completed results and test logs are recorded in
 [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) and `artifacts/infrabox1/`.
+
+## OpenClaw Gateway
+
+OpenClaw runs as a non-root Podman container at `https://claw.<infrabox_domain>`.
+nginx terminates HTTPS and proxies WebSockets to `127.0.0.1:18789`. The existing
+certificate Agent adds the hostname to nginx's certificate. OpenClaw augments
+Node's public CA trust with the InfraBox RootCA; its own TLS server is disabled.
+nginx overwrites forwarded client IPs, and OpenClaw trusts only the discovered
+backend bridge gateway for proxy attribution. Authentication remains token-based.
+The host-only OpenBao loopback alias is excluded from the container's hosts file,
+so backend DNS resolves OpenBao correctly.
+
+`agent.yml` deploys OpenClaw. The certificate Agent playbook is now
+`certificate-agent.yml`; `pki.yml` includes it. On an established appliance:
+
+```sh
+.venv/bin/python scripts/create-controller-secrets.py
+.venv/bin/ansible-playbook -i inventories/local/hosts.yml pki.yml agent.yml edge.yml \
+  -e @.secrets/infrabox1/inputs.json
+.venv/bin/ansible-playbook -i inventories/local/hosts.yml acceptance-openclaw.yml \
+  -e @.secrets/infrabox1/inputs.json
+```
+
+The generator adds `openclaw_gateway_token` to existing inputs without replacing
+other credentials. This token authenticates Gateway clients and is separate from
+the OpenBao service token. Retrieve it privately from your controller inputs for
+the Control UI or CLI; never put it in a URL, inventory, or `openclaw.json`.
+Keep the application's device-pairing checks enabled when enrolling clients.
+After entering the Gateway token, approve the specific pending browser/device
+request from the appliance:
+
+```sh
+sudo podman exec openclaw node openclaw.mjs devices list --json
+sudo podman exec openclaw node openclaw.mjs devices approve <request-id>
+```
+
+Check the requested device and scopes before approval; do not disable pairing or
+approve unrelated pending requests.
+
+Review these settings in your local inventory's `group_vars/all.yml`:
+
+| Setting | Local setup choice |
+| --- | --- |
+| `openclaw_hostname` | Defaults to `claw.<infrabox_domain>`; configure DNS to the appliance. |
+| `openclaw_version`, `openclaw_image_digest`, `openclaw_image` | Pinned official release and digest. Update version and digest together. |
+| `openclaw_memory_limit`, `openclaw_cpu_limit`, `openclaw_pids_limit` | Defaults: 2 GiB, 2 CPUs, 512 processes. |
+| `openclaw_openbao_kv_mount` | KV v2 mount, default `kv`; an existing incompatible engine is rejected. |
+| `openclaw_openbao_token_period` | Whole hours, default `168h` (seven days). |
+| `openclaw_openbao_token_renew_calendar` | Default midnight and noon daily. |
+| `openclaw_http_proxy`, `openclaw_https_proxy`, `openclaw_no_proxy` | Optional runtime proxy; internal service names must bypass it. Keep proxy credentials in protected inputs. |
+| `openclaw_model_providers` | Optional provider configuration using Vault SecretRefs; empty by default. |
+
+The pinned image uses UID/GID 1000. Configuration and credentials live under
+`/etc/infrabox/openclaw`. Ansible builds a local runtime image from the pinned
+official image, changing only `/usr/local/bin/node` ownership to UID/GID 1000
+(mode 0755). OpenClaw's exec SecretRef validation requires its executable to be
+owned by the running user; the official image supplies a root-owned Node binary.
+The build uses no network, and the container still runs without capabilities.
+Ansible verification runs the full SecretRef audit to catch resolver failures.
+Persistent state and workspace live under
+`/srv/infrabox/openclaw`. The container receives only these component mounts and
+the public RootCA. Configuration is read-only inside the container; change the
+inventory and rerun `agent.yml` to update it. Its token directory is mounted read-only, so atomic token
+replacement remains visible. It has no host runtime socket, TPM device, SSH
+credentials, database credentials, or infrastructure execution interface. Nested
+sandboxing, terminal access, and execution tools are disabled for this stage.
+Runner jobs cannot access the OpenClaw nginx route.
+
+### OpenBao credentials and recovery
+
+OpenClaw uses the bundled Vault plugin with `token_file` authentication. There is
+no OpenClaw AppRole or additional OpenBao Agent. The orphan service token has
+exactly the `infrabox-openclaw` policy, without `default`: read access under
+`kv/data/openclaw/*`, lookup-self, and renew-self. It cannot create tokens, issue
+certificates, administer OpenBao, or read unrelated KV paths.
+
+`openclaw-token-renew.timer` runs the native `bao` renewal helper twice daily and
+five to ten minutes after boot. Renewal preserves the token value. The helper
+cannot create replacement credentials; a failed renewal remains visible through
+systemd. Its seven-day period requires a successful renewal within that window.
+After an outage longer than the period, run the established-appliance playbooks
+above. Ansible uses the retained controller management credential to repair PKI
+and issue a replacement service token, then restarts OpenClaw. Healthy tokens
+survive ordinary reruns. A token with incorrect properties is replaced, and its
+superseded token is retired only after the replacement passes Gateway and bundled
+resolver checks.
+
+### Optional model providers
+
+The Gateway starts without provider credentials. InfraBox does not provision
+model keys or enable production integrations. An operator can store an API key in
+KV v2 at `kv/openclaw/providers/<provider>` with a string field named `apiKey`,
+then configure an appropriate provider using a reference such as:
+
+```yaml
+openclaw_model_providers:
+  example:
+    baseUrl: https://api.example.com/v1
+    api: openai-completions
+    models: [] # Supply the model definitions required by your provider.
+    apiKey:
+      source: exec
+      provider: vault
+      id: openclaw/providers/example/apiKey
+```
+
+The SecretRef ID omits the mount name and KV v2 `/data/` API segment. Resolved keys
+are runtime values; configuration retains references. See the official
+[Vault plugin guide](https://docs.openclaw.ai/plugins/vault) and
+[container documentation](https://docs.openclaw.ai/install/docker).
+
+#### Example: OpenAI API key in OpenBao
+
+This example uses the default `kv` mount and an OpenAI Platform API key. The
+OpenAI key is separate from both the Gateway login token and OpenClaw's OpenBao
+service token.
+
+First, open `https://vault.infrabox.example.com` (substitute your service domain)
+and sign in with an operator credential that can write the secret. For the MVP,
+the retained controller root token is in
+`.secrets/infrabox1/openbao-init.json`, under `root_token`; use it only for
+administration, never as the provider key or OpenClaw's runtime credential.
+In **Secrets**, open the **kv** engine, create a secret at
+`openclaw/providers/openai`, and add a string field named **apiKey** whose value
+is your OpenAI API key. Save it before deploying the provider configuration.
+
+| Item | Value with the default mount |
+| --- | --- |
+| KV engine | `kv` (version 2) |
+| Secret path inside the engine | `openclaw/providers/openai` |
+| Field containing the OpenAI API key | `apiKey` |
+| OpenBao API path | `kv/data/openclaw/providers/openai` |
+| OpenClaw SecretRef ID | `openclaw/providers/openai/apiKey` |
+
+Add this to `inventories/local/group_vars/all.yml`, merging it with any existing
+`openclaw_model_providers` entries:
+
+```yaml
+openclaw_model_providers:
+  openai:
+    baseUrl: https://api.openai.com/v1
+    api: openai-responses
+    models:
+      - id: gpt-6-astra
+        name: GPT-6 Astra
+        reasoning: true
+        input: [text, image]
+        contextWindow: 1050000
+        maxTokens: 128000
+    apiKey:
+      source: exec
+      provider: vault
+      id: openclaw/providers/openai/apiKey
+```
+
+`api: openai-responses` selects OpenAI's Responses API protocol. The `baseUrl`
+points directly to OpenAI, and `models[].id` selects the actual hosted model.
+`openai-completions` is the Chat Completions adapter, not a model name or a mock
+provider. This example uses Responses for direct OpenAI access.
+
+`gpt-6-astra` is the current flagship example, checked on 2026-09-12. Your
+OpenAI API project must have access to it. When selecting another model, update
+its capabilities and limits as well as its ID. The inventory contains only a
+reference, never the key. If you changed `openclaw_openbao_kv_mount`, use that
+engine in OpenBao; the SecretRef ID still omits the mount and `/data/` segment.
+
+Model entries were checked against the
+[OpenClaw 2026.9.4 configuration schema](https://github.com/openclaw/openclaw/blob/v2026.9.4/src/config/zod-schema.core.ts).
+Only `id` and `name` are required within each explicitly configured model entry;
+the other fields below are optional. The example makes GPT-6 Astra's capabilities
+and limits explicit using its [official model specifications](https://developers.openai.com/api/docs/models/gpt-6-astra).
+
+| Model entry field | Meaning |
+| --- | --- |
+| `id` | Provider model ID, such as `gpt-6-astra`; omit the `openai/` prefix here. |
+| `name` | Display label in OpenClaw. |
+| `reasoning` | Whether the model supports reasoning/thinking controls; `true` for GPT-6 Astra. |
+| `input` | Supported input types. GPT-6 Astra accepts `text` and `image`; declare only capabilities the selected model supports. |
+| `contextWindow` | Native context limit in tokens. |
+| `contextTokens` | Optional smaller runtime context budget for session budgeting and compaction. |
+| `maxTokens` | Maximum output token budget, separate from the context window. |
+| `cost` | Optional USD-per-million-token accounting fields: `input`, `output`, `cacheRead`, `cacheWrite`, and optional `tieredPricing`. These describe costs; they do not enforce a spending limit. |
+| `api`, `baseUrl` | Optional per-model overrides of the provider's adapter and endpoint. |
+| `params`, `compat`, `thinkingLevelMap` | Advanced request parameters, adapter compatibility, and reasoning-level mapping; use only settings supported by the selected provider/model. |
+
+The schema also accepts `agentRuntime`, `headers`, `mediaInput`, and
+`metadataSource`; these are not needed for this example. Keep credentials in the
+Vault SecretRef, including when considering custom headers. Do not copy model
+limits or reasoning flags to a different model without checking its specifications.
+
+In InfraBox, `openclaw_model_providers` becomes `models.providers` in OpenClaw's
+JSON configuration. Each provider's `models` value is a list of model objects,
+not a list of model-name strings. Top-level `models.mode` (`merge` or `replace`)
+and `agents.defaults.model.primary` are separate OpenClaw settings; the current
+Ansible role does not expose variables for them. Use session model selection
+below; listing models here does not configure a default or an access allowlist.
+
+Apply the configuration from the controller:
+
+```sh
+.venv/bin/ansible-playbook -i inventories/local/hosts.yml agent.yml -e @.secrets/infrabox1/inputs.json
+```
+
+Open `https://claw.infrabox.example.com`, authenticate with the Gateway token,
+and select `openai/gpt-6-astra` for the chat session using the model picker or
+`/model openai/gpt-6-astra`. Send a short message to verify an actual provider call.
+Adding a provider alone does not set the agent's default model. Keep configuration
+changes in Ansible because the deployed `openclaw.json` is read-only.
+
+To rotate the OpenAI key, update the same OpenBao secret's `apiKey` field and
+run `sudo systemctl restart openclaw` on the appliance to resolve the new value.
+A healthy Ansible rerun may make no changes and does not itself guarantee a
+secret reload. The OpenBao service token does not need replacement for this
+rotation. See OpenClaw's [OpenAI provider guide](https://docs.openclaw.ai/providers/openai)
+and [model selection guide](https://docs.openclaw.ai/concepts/models).
+
+### Operations and validation
+
+On the appliance:
+
+```sh
+sudo systemctl status openclaw openclaw-token-renew.timer
+sudo journalctl -u openclaw -u openclaw-token-renew.service
+sudo systemctl list-timers openclaw-token-renew.timer
+sudo systemctl start openclaw-token-renew.service
+sudo systemctl restart openclaw
+curl --fail http://127.0.0.1:18789/healthz
+sudo podman exec openclaw node -e \
+  'fetch("http://127.0.0.1:18789/readyz").then(r => process.exit(r.status === 200 ? 0 : 1))'
+```
+
+Probe readiness inside the container or through public HTTPS. Host-to-container
+traffic shares nginx's trusted bridge address, and the Gateway rejects readiness
+requests from that address without an attributable non-loopback client. The
+public HTTPS route receives accurate client headers from nginx automatically.
+
+If SecretRefs stop resolving, first check OpenBao health and
+`systemctl status openclaw-token-renew.service`. The role's verification task
+checks the token through the running container without printing it. For an
+expired or revoked token, rerun `agent.yml --tags openclaw` with your explicit
+inventory and protected inputs; use `pki.yml` first if certificates also expired.
+Then verify `/readyz` again.
+
+Treat logs and container inspection as sensitive; complete environment output
+contains the Gateway token. For upgrades, back up state and protected controller
+inputs, select a reviewed official version/digest pair, rerun Ansible, and run
+acceptance. Reverting an image does not guarantee compatibility with migrated
+application state.
+
+`acceptance-openclaw.yml` temporarily restarts the Gateway and uses a disposable
+KV fixture to test the bundled resolver and runtime SecretRef reload. It also
+checks token renewal, denied OpenBao operations, Gateway authentication, and
+WebSockets through nginx using a temporary, explicitly paired client. It removes
+that client, restores configuration, and deletes the KV fixture.
+`acceptance-openclaw-token-lifecycle.yml` tests period changes, superseded-token
+revocation, failed renewal of a revoked token, and normal Ansible repair. It
+requires the default seven-day period and restores it after the period test.
+`acceptance-openclaw-expiry.yml` uses a five-second periodic fixture to test real
+expiry and restores the configured period through normal Ansible repair.
+`acceptance-openclaw-reboot.yml` additionally reboots the appliance, checks that
+the token survives, waits for scheduled boot renewal, and repeats integration
+acceptance. Read `IMPLEMENTATION_STATUS.md` for what has actually passed on the
+test host.

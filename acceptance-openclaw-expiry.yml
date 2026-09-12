@@ -1,0 +1,34 @@
+---
+- name: Verify repair after an OpenClaw periodic token actually expires
+  hosts: infrabox
+  become: true
+  tasks:
+    - name: Verify the installed Gateway
+      ansible.builtin.include_role:
+        name: openclaw
+        tasks_from: verify
+        public: true
+    - name: Install expiry acceptance helper
+      ansible.builtin.copy:
+        src: scripts/test-openclaw-token-lifecycle.py
+        dest: /usr/local/libexec/infrabox/test-openclaw-token-lifecycle
+        mode: '0700'
+    - name: Exercise actual periodic token expiry
+      block:
+        - name: Install a five-second token and wait for expiry
+          ansible.builtin.include_tasks: tasks/openclaw-lifecycle-check.yml
+          vars:
+            openclaw_lifecycle_action: expire
+      always:
+        - name: Repair with the normal Ansible role
+          ansible.builtin.include_role:
+            name: openclaw
+    - name: Verify expired-token repair
+      ansible.builtin.include_tasks: tasks/openclaw-lifecycle-check.yml
+      vars:
+        openclaw_lifecycle_action: verify
+        openclaw_lifecycle_period: '{{ (openclaw_openbao_token_period | regex_replace("h$", "") | int) * 3600 }}'
+    - name: Verify native renewal works again
+      ansible.builtin.systemd_service:
+        name: openclaw-token-renew.service
+        state: started

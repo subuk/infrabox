@@ -1,0 +1,17 @@
+[Unit]
+Description=Renew the InfraBox OpenClaw periodic OpenBao token
+After=network-online.target openbao.service
+Wants=network-online.target
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/local/libexec/infrabox/openclaw-token-renew
+TimeoutStartSec=60
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ReadOnlyPaths={{ openclaw_config_dir }}/secrets/vault-token {{ infrabox_root_ca_path }}

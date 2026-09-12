@@ -24,6 +24,7 @@ openbao_agent_certificates:
       - 'netbox.{{ infrabox_domain }}'
       - 'vault.{{ infrabox_domain }}'
       - 'grafana.{{ infrabox_domain }}'
+      - '{{ openclaw_hostname | default("claw." ~ infrabox_domain) }}'
     uid: 0
     gid: 0
 openbao_agent_secret_id_rotate_after_seconds: 86400

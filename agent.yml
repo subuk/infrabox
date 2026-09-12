@@ -1,7 +1,7 @@
 ---
-- name: Deploy certificate Agent
+- name: Deploy OpenClaw Gateway
   hosts: infrabox
   become: true
   roles:
-    - role: openbao_agent
-      tags: [openbao_agent]
+    - role: openclaw
+      tags: [openclaw]

@@ -1,0 +1,29 @@
+[Unit]
+Description=InfraBox OpenClaw Gateway
+After=network-online.target openbao.service
+Wants=network-online.target openbao.service
+[Container]
+Image={{ openclaw_runtime_image }}
+ContainerName=openclaw
+User={{ openclaw_uid }}:{{ openclaw_gid }}
+DropCapability=all
+NoNewPrivileges=true
+PodmanArgs=--hosts-file=none --memory={{ openclaw_memory_limit }} --cpus={{ openclaw_cpu_limit }} --pids-limit={{ openclaw_pids_limit }}
+Network=infrabox.network
+NetworkAlias=openclaw.{{ infrabox_internal_domain }}
+PublishPort=127.0.0.1:{{ openclaw_port }}:{{ openclaw_port }}
+EnvironmentFile={{ openclaw_config_dir }}/openclaw.env
+Volume={{ openclaw_config_dir }}/openclaw.json:/etc/openclaw/openclaw.json:ro,Z
+Volume={{ openclaw_config_dir }}/secrets:/run/openclaw-secrets:ro,Z
+Volume={{ openclaw_storage_dir }}/state:/home/node/.openclaw:Z
+Volume={{ openclaw_storage_dir }}/workspace:/home/node/.openclaw/workspace:Z
+Volume={{ infrabox_root_ca_path }}:/run/infrabox-ca/root-ca.crt:ro,z
+Exec=node openclaw.mjs gateway
+[Service]
+Restart=on-failure
+TimeoutStartSec=300
+MemoryMax={{ openclaw_memory_limit }}
+CPUQuota={{ (openclaw_cpu_limit | float * 100) | int }}%
+TasksMax={{ openclaw_pids_limit }}
+[Install]
+WantedBy=multi-user.target

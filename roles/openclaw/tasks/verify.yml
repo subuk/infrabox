@@ -1,0 +1,31 @@
+---
+- name: Verify Gateway liveness through the loopback host publication
+  ansible.builtin.uri:
+    url: 'http://127.0.0.1:{{ openclaw_port }}/healthz'
+  register: openclaw_health
+  until: openclaw_health.status == 200
+  retries: 60
+  delay: 3
+- name: Verify Gateway readiness directly inside the container
+  ansible.builtin.command:
+    argv:
+      - podman
+      - exec
+      - openclaw
+      - node
+      - -e
+      - 'fetch("http://127.0.0.1:{{ openclaw_port }}/readyz").then(r => process.exit(r.status === 200 ? 0 : 1)).catch(() => process.exit(1))'
+  register: openclaw_ready
+  changed_when: false
+  until: openclaw_ready.rc == 0
+  retries: 60
+  delay: 3
+- name: Verify OpenClaw isolation, token contract, and Node trust
+  ansible.builtin.script:
+    cmd: 'scripts/verify-openclaw.py {{ openclaw_port }} {{ openclaw_config_dir }} {{ openclaw_storage_dir }} {{ infrabox_root_ca_path }} {{ (openclaw_openbao_token_period | regex_replace("h$", "") | int) * 3600 }}'
+  changed_when: false
+- name: Audit configured provider SecretRefs through OpenClaw security checks
+  ansible.builtin.command:
+    argv: [podman, exec, openclaw, node, openclaw.mjs, secrets, audit, --check, --allow-exec, --json]
+  changed_when: false
+  no_log: true

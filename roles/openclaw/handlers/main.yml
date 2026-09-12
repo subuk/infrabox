@@ -1,0 +1,6 @@
+---
+- name: Restart openclaw
+  ansible.builtin.systemd_service:
+    name: openclaw.service
+    state: restarted
+  when: not (quadlet_rendered.changed | default(false))

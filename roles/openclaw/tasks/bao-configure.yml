@@ -1,0 +1,19 @@
+---
+- name: Create host-only OpenClaw management helper directory
+  ansible.builtin.file:
+    path: /usr/local/libexec/infrabox
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+- name: Install OpenClaw token management helper
+  ansible.builtin.copy:
+    src: openbao-token.py
+    dest: /usr/local/libexec/infrabox/openclaw-openbao-token
+    owner: root
+    group: root
+    mode: '0700'
+- name: Configure scoped KV policy and periodic token role
+  ansible.builtin.include_tasks: bao-manage.yml
+  vars:
+    openclaw_token_action: configure

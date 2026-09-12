@@ -1,0 +1,83 @@
+---
+- name: Require pinned image and protected Gateway credential
+  ansible.builtin.assert:
+    that:
+      - openclaw_openbao_token_period is match('^[1-9][0-9]*h$')
+      - openclaw_uid | int == 1000
+      - openclaw_gid | int == 1000
+      - openclaw_version is match('^[0-9]+\.[0-9]+\.[0-9]+$')
+      - openclaw_image is search(':' ~ openclaw_version ~ '(@sha256:[a-f0-9]{64})?$')
+      - openclaw_gateway_token is defined
+      - openclaw_gateway_token | default('') is match('^[a-fA-F0-9]{64,}$')
+  no_log: true
+- name: Inspect pinned OpenClaw image
+  ansible.builtin.command:
+    argv: [podman, image, exists, '{{ openclaw_image }}']
+  register: openclaw_image_exists
+  failed_when: openclaw_image_exists.rc not in [0, 1]
+  changed_when: false
+- name: Pull pinned OpenClaw image
+  ansible.builtin.command:
+    argv: [podman, pull, '{{ openclaw_image }}']
+  when: openclaw_image_exists.rc == 1
+  changed_when: true
+- name: Require provider credentials to be scoped Vault SecretRefs
+  ansible.builtin.assert:
+    that:
+      - item.value.apiKey is mapping
+      - item.value.apiKey.source == 'exec'
+      - item.value.apiKey.provider == 'vault'
+      - item.value.apiKey.id is match('^openclaw/')
+    fail_msg: Configure model provider API keys as OpenClaw-scoped Vault SecretRefs.
+  loop: '{{ openclaw_model_providers | dict2items }}'
+  no_log: true
+- name: Verify the pinned image release label
+  ansible.builtin.command:
+    argv:
+      - podman
+      - image
+      - inspect
+      - '{{ openclaw_image }}'
+      - --format
+      - '{% raw %}{{ index .Config.Labels "org.opencontainers.image.version" }}{% endraw %}'
+  register: openclaw_image_version
+  changed_when: false
+  failed_when: openclaw_image_version.rc != 0 or openclaw_image_version.stdout | trim != openclaw_version
+- name: Create private OpenClaw image build directory
+  ansible.builtin.file:
+    path: '{{ infrabox_config_root }}/openclaw-image'
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+- name: Define resolver executable ownership correction
+  ansible.builtin.copy:
+    dest: '{{ infrabox_config_root }}/openclaw-image/Containerfile'
+    owner: root
+    group: root
+    mode: '0600'
+    content: |
+      FROM {{ openclaw_image }}
+      USER root
+      RUN chown 1000:1000 /usr/local/bin/node && chmod 0755 /usr/local/bin/node
+      USER 1000:1000
+  register: openclaw_build_definition
+- name: Inspect corrected runtime image
+  ansible.builtin.command:
+    argv: [podman, image, exists, '{{ openclaw_runtime_image }}']
+  register: openclaw_runtime_exists
+  failed_when: openclaw_runtime_exists.rc not in [0, 1]
+  changed_when: false
+- name: Build corrected runtime from pinned official image
+  ansible.builtin.command:
+    argv:
+      - podman
+      - build
+      - --network=none
+      - --pull=never
+      - --tag
+      - '{{ openclaw_runtime_image }}'
+      - '{{ infrabox_config_root }}/openclaw-image'
+  when: openclaw_build_definition.changed or openclaw_runtime_exists.rc != 0
+  changed_when: true
+  notify: Restart openclaw

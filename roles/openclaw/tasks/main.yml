@@ -1,0 +1,21 @@
+---
+- name: Install OpenClaw
+  ansible.builtin.import_tasks: install.yml
+  tags: [install]
+- name: Configure OpenClaw
+  ansible.builtin.import_tasks: configure.yml
+  tags: [configure]
+- name: Provision OpenClaw token and renewal
+  ansible.builtin.import_tasks: token.yml
+  tags: [configure]
+- name: Start OpenClaw
+  ansible.builtin.import_tasks: service.yml
+  tags: [service]
+- name: Verify OpenClaw
+  ansible.builtin.import_tasks: verify.yml
+  tags: [verify, service]
+- name: Retire superseded token only after Gateway verification
+  ansible.builtin.include_tasks: bao-manage.yml
+  vars:
+    openclaw_token_action: finalize
+  tags: [service]

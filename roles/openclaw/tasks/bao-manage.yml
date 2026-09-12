@@ -1,0 +1,18 @@
+---
+- name: 'Manage OpenClaw OpenBao credential: {{ openclaw_token_action }}'
+  ansible.builtin.command:
+    argv: [python3, /usr/local/libexec/infrabox/openclaw-openbao-token]
+    stdin: '{{ openclaw_management_parameters | to_json }}'
+  vars:
+    openclaw_management_parameters:
+      action: '{{ openclaw_token_action }}'
+      root_token: '{{ (lookup("ansible.builtin.file", openclaw_controller_dir ~ "/openbao-init.json") | from_json).root_token }}'
+      socket: '{{ openclaw_openbao_socket }}'
+      period: '{{ openclaw_openbao_token_period }}'
+      mount: '{{ openclaw_openbao_kv_mount }}'
+      token_file: '{{ openclaw_config_dir }}/secrets/vault-token'
+      uid: '{{ openclaw_uid }}'
+      gid: '{{ openclaw_gid }}'
+  register: openclaw_token_result
+  changed_when: openclaw_token_result.rc == 0 and (openclaw_token_result.stdout | from_json).changed
+  no_log: true

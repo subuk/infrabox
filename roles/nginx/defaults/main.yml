@@ -5,3 +5,6 @@ nginx_upstreams:
   - {name: netbox, address: 'http://127.0.0.1:8080'}
   - {name: grafana, address: 'http://127.0.0.1:3001'}
   - {name: vault, address: 'https://127.0.0.1:8200'}
+  - name: claw
+    hostname: '{{ openclaw_hostname | default("claw." ~ infrabox_domain) }}'
+    address: 'http://127.0.0.1:{{ openclaw_port | default(18789) }}'

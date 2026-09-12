@@ -2,5 +2,5 @@
 - ansible.builtin.import_playbook: pki-recover.yml
 - ansible.builtin.import_playbook: openbao-runtime.yml
 - ansible.builtin.import_playbook: pki-bootstrap.yml
-- ansible.builtin.import_playbook: agent.yml
+- ansible.builtin.import_playbook: certificate-agent.yml
 - ansible.builtin.import_playbook: host-trust.yml

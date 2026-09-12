@@ -77,12 +77,12 @@ a fresh, uninitialized appliance, preserve this order:
 4. Run `pki-bootstrap.yml` with `openbao_bootstrap_initialize=true` for first
    initialization only. Preserve the controller output, then rerun bootstrap
    without the initialization flag to verify that existing CA state is retained.
-5. Run `agent.yml` with
+5. Run `certificate-agent.yml` with
    `openbao_agent_openbao_address=http://127.0.0.1:8200`, then `host-trust.yml`.
    Verify issued certificates before switching transport.
 6. Select the final inventory state explicitly: `openbao_tls_enabled=true` and
    an HTTPS Agent URL matching `infrabox_internal_domain`. Apply
-   `openbao-runtime.yml` and `agent.yml` without the HTTP overrides.
+   `openbao-runtime.yml` and `certificate-agent.yml` without the HTTP overrides.
 7. Run `site.yml` to deploy the complete stack, then repeat it and run
    `verify.yml`. A stable repeat should have no unexpected changes.
 
@@ -159,3 +159,21 @@ Preserve sanitized successful logs and public CA exports under
 steps change, and update IMPLEMENTATION_STATUS with the target and tests actually
 completed. Report failures and remaining work plainly. Never claim acceptance
 from syntax checks alone or copy another host's historical results as new evidence.
+
+## OpenClaw integration
+
+Read `InfraBox — OpenClaw Integration Implementation Plan.md` for the incremental
+Gateway contract. `agent.yml` now owns OpenClaw; `certificate-agent.yml` owns the
+existing certificate Agent. Preserve their independent identities and lifecycle.
+OpenClaw uses a seven-day periodic orphan service token and the bundled Vault
+plugin's token-file authentication, never the certificate Agent's AppRole or a
+root token. Keep tokens stable on healthy reruns. Only retire a superseded token
+after replacement verification. The native renewal service can renew only itself.
+
+Run `acceptance-openclaw.yml` for disposable SecretRef, renewal, authentication,
+and proxy checks, `acceptance-openclaw-token-lifecycle.yml` for period changes and
+revoked-token recovery, and `acceptance-openclaw-reboot.yml` for reboot acceptance when
+authorized. These checks restart the Gateway; the latter reboots the appliance
+and waits for its scheduled boot renewal. Do not claim these have passed unless
+the corresponding live runs succeeded. Leave model provider keys and production
+infrastructure access to operator configuration and future work.

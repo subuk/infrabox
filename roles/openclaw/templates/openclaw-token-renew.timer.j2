@@ -1,0 +1,10 @@
+[Unit]
+Description=Renew the OpenClaw OpenBao token twice daily and after boot
+[Timer]
+OnBootSec=5min
+OnCalendar={{ openclaw_openbao_token_renew_calendar }}
+Persistent=true
+RandomizedDelaySec=5min
+Unit=openclaw-token-renew.service
+[Install]
+WantedBy=timers.target

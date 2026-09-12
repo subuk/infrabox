@@ -1,0 +1,18 @@
+---
+- name: 'Run OpenClaw lifecycle check: {{ openclaw_lifecycle_action }}'
+  ansible.builtin.command:
+    argv: [python3, /usr/local/libexec/infrabox/test-openclaw-token-lifecycle]
+    stdin: '{{ openclaw_lifecycle_parameters | to_json }}'
+  vars:
+    openclaw_lifecycle_parameters:
+      action: '{{ openclaw_lifecycle_action }}'
+      root_token: '{{ (lookup("ansible.builtin.file", openclaw_controller_dir ~ "/openbao-init.json") | from_json).root_token }}'
+      socket: '{{ openclaw_openbao_socket }}'
+      config_dir: '{{ openclaw_config_dir }}'
+      period: '{{ openclaw_lifecycle_period | default(604800) | int }}'
+  register: openclaw_lifecycle_result
+  changed_when: true
+  no_log: true
+- name: Report sanitized lifecycle outcome
+  ansible.builtin.debug:
+    msg: '{{ openclaw_lifecycle_result.stdout_lines }}'

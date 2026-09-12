@@ -12,3 +12,7 @@
 - name: Verify trusted NetBox public HTTPS route
   ansible.builtin.uri:
     url: 'https://netbox.{{ infrabox_domain }}/login/'
+- name: Verify trusted OpenClaw HTTPS liveness and readiness
+  ansible.builtin.uri:
+    url: 'https://{{ openclaw_hostname | default("claw." ~ infrabox_domain) }}/{{ item }}'
+  loop: [healthz, readyz]

@@ -1,0 +1,51 @@
+---
+- name: Record OpenClaw credential identity before reboot
+  hosts: infrabox
+  become: true
+  tasks:
+    - name: Verify OpenClaw before reboot
+      ansible.builtin.include_role:
+        name: openclaw
+        tasks_from: verify
+        public: true
+    - name: Fingerprint existing OpenClaw service token
+      ansible.builtin.command:
+        argv: [sha256sum, '{{ openclaw_config_dir }}/secrets/vault-token']
+      register: openclaw_token_before_reboot
+      changed_when: false
+      no_log: true
+- ansible.builtin.import_playbook: acceptance-reboot.yml
+- name: Verify OpenClaw boot-time renewal and retained identity
+  hosts: infrabox
+  become: true
+  tasks:
+    - name: Verify OpenClaw after reboot
+      ansible.builtin.include_role:
+        name: openclaw
+        tasks_from: verify
+        public: true
+    - name: Fingerprint OpenClaw token after boot
+      ansible.builtin.command:
+        argv: [sha256sum, '{{ openclaw_config_dir }}/secrets/vault-token']
+      register: openclaw_token_after_reboot
+      changed_when: false
+      no_log: true
+    - name: Require unchanged OpenClaw token across reboot
+      ansible.builtin.assert:
+        that: openclaw_token_before_reboot.stdout == openclaw_token_after_reboot.stdout
+      no_log: true
+    - name: Wait for scheduled renewal during this boot
+      ansible.builtin.command:
+        argv: [systemctl, show, openclaw-token-renew.service, -p, ExecMainExitTimestampMonotonic, --value]
+      register: openclaw_boot_renewal
+      changed_when: false
+      until: openclaw_boot_renewal.stdout | int > 0
+      retries: 120
+      delay: 5
+    - name: Require successful boot renewal
+      ansible.builtin.command:
+        argv: [systemctl, show, openclaw-token-renew.service, -p, Result, --value]
+      register: openclaw_boot_renewal_result
+      changed_when: false
+      failed_when: openclaw_boot_renewal_result.stdout | trim != 'success'
+- ansible.builtin.import_playbook: acceptance-openclaw.yml

@@ -1,0 +1,16 @@
+{
+  "gateway": {
+    "mode": "local", "bind": "lan", "port": {{ openclaw_port }},
+    "publicOrigin": {{ ("https://" ~ openclaw_hostname) | to_json }},
+    "terminal": {"enabled": false},
+    "auth": {"mode": "token"},
+    "trustedProxies": {{ (openclaw_backend_network.stdout | from_json)[0].subnets | map(attribute="gateway") | list | to_json }},
+    "tls": {"enabled": false, "autoGenerate": false},
+    "controlUi": {"enabled": true, "allowedOrigins": [{{ ("https://" ~ openclaw_hostname) | to_json }}]}
+  },
+  "agents": {"defaults": {"workspace": "/home/node/.openclaw/workspace", "sandbox": {"mode": "off"}}},
+  "tools": {"profile": "minimal", "deny": ["exec", "process", "browser", "nodes"]},
+  "plugins": {"allow": ["vault"], "entries": {"vault": {"enabled": true}}},
+  "secrets": {"providers": {"vault": {"source": "exec", "pluginIntegration": {"pluginId": "vault", "integrationId": "vault"}}}},
+  "models": {"providers": {{ openclaw_model_providers | to_json }}}
+}
