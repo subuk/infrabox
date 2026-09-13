@@ -1,5 +1,74 @@
 # Implementation status
 
+## KRG-6 Platform discovery — 2026-09-13, live acceptance pending
+
+Implemented the Platform source/runtime/workflows in the separate local
+`infrabox-platform` repository and optional Core provisioning in `automation.yml`.
+The existing `platform.yml` remains the foundation Podman/TPM playbook.
+Development selects a committed local Platform checkout and transfers a Git bundle;
+no GitHub push has been made. Updates force-synchronize the selected execution
+branch while preserving repository history of runs, artifacts and settings.
+
+The implementation uses native NetBox Config Context flattening, native Ansible
+patterns and facts, separate repository-scoped runner/network/UID mapping,
+read-only NetBox credentials and an independent renewable OpenBao token. Target
+SSH credentials are operator-managed at `kv/platform/ssh/default`, field
+`private_key`. External checkout/upload Actions are pinned by commit. No Platform
+pipeline monitoring or scheduled discovery was added.
+
+Completed local checks:
+
+- Core Python unit tests: 49 passed; existing Node tests: 5 passed.
+- Ansible syntax: `site.yml`, `automation.yml`, `verify.yml`, and
+  `acceptance-platform.yml` / `acceptance-platform-compatibility.yml` passed
+  with explicit development inventory.
+- Platform Python tests: 6 passed on the controller and in the Linux amd64
+  runtime container with capabilities dropped and no-new-privileges enabled.
+  Fixtures use the actual pinned NetBox inventory plugin and actual Ansible
+  local fact gathering: arbitrary flattened variables, native addresses/patterns,
+  no-target failure, partial success, denied inventory and exclusion of
+  credential-bearing errors.
+- The pinned runtime built locally. Runner 3.4.2, Node 22.20.0, Ansible Core
+  2.19.7, Git and SSH executed successfully; `pip check` passed.
+
+The authorized existing appliance is `infrabox1` at `almalinux@192.168.32.206`,
+using `inventories/development/hosts.yml` and preserved TPM/domain/controller
+inputs. A live deployment completed with `ok=98 changed=22 failed=0`, installing
+Platform commit `8f4f4a0d2500aef724d7fa84650834ce687d2af5`. Local Gitea's execution
+branch and the runner's embedded revision matched. Provisioning created scoped
+NetBox/OpenBao/Gitea identities and repository runner, enforced branch/team ACLs,
+and enabled token self-renewal. The existing NetBox authorization backend now
+excludes implicit personal-object permissions for Platform as it does for
+OpenClaw; Platform's API token also has writes disabled.
+
+Live component checks passed actual HTTPS NetBox reads using the mounted scoped
+credential, denial of Core secrets, UID/capability/SELinux confinement, backend
+and management port isolation, and the expected local HTTPS access restrictions.
+NetBox web/worker PostgreSQL and Redis TLS checks passed after their configuration
+restart. Evidence: `artifacts/infrabox1/platform-deploy.log`.
+
+Compatibility run 111 completed successfully in Gitea: checkout matched the source
+SHA and the v3 action uploaded 41 bytes. The acceptance helper failed its REST
+artifact lookup: this Gitea version lists/downloads only v4 artifacts through
+those endpoints. Evidence: `platform-compatibility.log` and
+`platform-compatibility.json` in the same controller artifact directory.
+The local Platform candidate `45f544e` switches to a pinned Gitea-compatible v4
+upload action; it has **not yet been deployed or passed its live gate**.
+
+Subsequent SSH authentication failed again: the server accepted the controller
+public key but signing did not complete, and the SSH agent was empty. Further
+deployment requires restoring controller SSH access. The extended configuration
+fingerprint/drain logic is also pending live application. Idempotent reruns,
+token lifecycle acceptance and managed-host discovery remain unverified.
+
+The operator designated `almalinux@192.168.32.207` for discovery. Its existing
+controller known_hosts entries were copied into protected Platform trust input.
+The operator confirmed its public key and OpenBao private key are installed and
+created Device `testbox` (ID 12). The latest read of that record still had no
+primary IP/platform/tag/Config Context, so discovery prerequisites are pending.
+No managed-host discovery has run. The temporary compatibility workflow remains
+until its live gate succeeds; broader acceptance and removal remain outstanding.
+
 ## KRG-15 continuous monitoring — 2026-09-12/13
 
 Implemented and deployed to the authorized existing development appliance:

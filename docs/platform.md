@@ -1,0 +1,137 @@
+# Platform discovery deployment
+
+KRG-6 adds an optional trusted Platform runner and managed Gitea automation
+repository. Implementation is in progress; live deployment/acceptance evidence
+is recorded separately in IMPLEMENTATION_STATUS.md. No discovery monitoring is
+added. The generic CI runner keeps its existing identity and restrictions.
+
+## Configure and deploy
+
+Use the authorized inventory and its existing protected controller inputs.
+For example, add the following non-secret settings to the selected inventory:
+
+```yaml
+platform_enabled: true
+platform_source: https://github.com/subuk/infrabox-platform.git
+platform_ref: master
+platform_operators: [operator]
+platform_known_hosts_file: /path/to/verified_known_hosts
+```
+
+`platform_operators` names existing Gitea users. Core creates the Operators team
+with Code Read / Actions Write; it does not expose infrastructure credentials to
+that team. Site administrators retain administrative authority. Only the separate
+provisioning identity may update trusted execution code.
+
+For development, set `platform_source` to the controller's local
+`infrabox-platform` directory and `platform_ref` to a committed branch/tag/SHA.
+Core makes a private Git bundle, transfers it and preserves the exact commit IDs.
+There is no required upstream push and no generated deployment commit. The local
+source mode remains selected on reruns until the inventory is changed.
+
+```sh
+.venv/bin/ansible-playbook -i inventories/local/hosts.yml automation.yml -e @.secrets/infrabox1/inputs.json
+```
+
+The feature is disabled by default while the upstream repository is being
+initialized. `site.yml` includes it when `platform_enabled` is true. Do not enable
+it against an empty/uncommitted source; prepare a source commit first. This is an
+established-appliance integration, not a replacement for the documented appliance
+bootstrap stages.
+
+The role builds the selected runtime, provisions separate NetBox/OpenBao/Gitea
+identities, synchronizes the execution branch, installs a repository-scoped
+runner and verifies its actual mounted credential against local services.
+Root/admin credentials reach management only through protected Ansible stdin.
+They never enter the runner or Git history.
+
+## Target credentials and trust
+
+Before live discovery, ask the operator for the designated test host. The
+operator installs the public SSH key on that host and writes its private part
+to `kv/platform/ssh/default`, field `private_key` (KV v2 API path
+`kv/data/platform/ssh/default`). Do not generate a replacement over an existing
+trusted key. Core creates `kv/platform/netbox`, field `token`, for read-only
+inventory access. Namespace paths are independent of OpenClaw's namespace.
+
+Obtain a verified known_hosts entry or fingerprint from the operator and supply
+the verified file with `platform_known_hosts_file`. Preserve host-key checking.
+Configure the target's native Ansible variables in NetBox Config Context and tag
+it `infrabox-managed`. Do not create customer inventory as part of provisioning.
+For multi-host/subset/partial-failure acceptance, arrange enough explicitly
+authorized fixtures rather than inventing a second target.
+
+Core uses an independent seven-day periodic orphan OpenBao token which may read
+the Platform namespace and look up/renew itself. A native timer renews it at boot
+and twice daily. Healthy reruns preserve credentials. The old accessor is retired
+only after the replacement works from the runner over verified HTTPS. Operators
+rotate the target SSH key in OpenBao; each new job materializes the current value.
+
+Config Context is trusted execution configuration, including connection and
+interpreter settings. The repository ACL alone does not make arbitrary context
+changes safe. Platform uses native variables and does not apply a hostvar whitelist.
+
+## Isolation and synchronization
+
+The Platform runner has its own bridge and UID mapping. Confirm the default
+`10.91.0.0/24` and `fd90:91::/64` do not overlap the deployment network. Its network
+allows target connection traffic and local HTTPS services while denying backend
+networks and host management ports. nginx denies Platform access to Grafana and
+OpenClaw; the generic runner remains denied access to OpenBao as well.
+
+Forced updates to the fixed execution branch are deliberate. Branch/tag/SHA and
+fork changes resolve to a candidate commit before touching the deployed branch.
+Repository settings, job history, artifacts and registration are retained. Only
+the execution branch is synchronized. No blanket mirror push is used.
+
+Updates pause the repository-scoped runner and drain active jobs before cutover.
+Runtime/configuration/revision mismatches fail clearly; queued old-revision jobs
+must not silently run against an incompatible runtime. If a cutover fails, repair
+the owning role/configuration and rerun. To roll back, select the previous
+compatible source revision and rerun the same procedure. Never clear job history,
+remove credentials or reinitialize OpenBao as a repair strategy.
+
+External pinned Gitea Actions are allowed. Normal runs may require internet access
+to fetch checkout/upload action code even when Platform source came from a local
+bundle. No global DEFAULT_ACTIONS_URL change is required.
+Upload uses the Gitea-compatible v4 fork recommended in the
+[Gitea v4 artifact announcement](https://blog.gitea.com/release-of-1.22.0/).
+The pinned Gitea REST artifact handlers filter for v4 artifacts; a successful v3
+upload alone does not satisfy the REST download acceptance check.
+
+## Verification
+
+Run Core syntax/unit checks and Platform fixture tests before deployment. The
+initial compatibility gate checks manual dispatch, actual local SHA checkout,
+and a tiny downloaded artifact on the pinned Gitea/runner versions. Its temporary
+workflow is removed after that gate succeeds.
+
+```sh
+.venv/bin/ansible-playbook -i inventories/local/hosts.yml acceptance-platform-compatibility.yml -e @.secrets/infrabox1/inputs.json
+```
+
+The gate requires the temporary `compatibility.yml` workflow in the selected
+Platform revision. It saves a sanitized result, run URL and checked SHA to
+`artifacts/<inventory_hostname>/platform-compatibility.json`. It does not access
+a managed target or require its SSH key. Component verification also checks
+actual scoped OpenBao/NetBox access and network/UID/SELinux/socket isolation.
+
+After that gate passes, run a selected managed-host check (substitute the
+explicitly authorized target's native inventory name):
+
+```sh
+.venv/bin/ansible-playbook -i inventories/local/hosts.yml acceptance-platform.yml -e @.secrets/infrabox1/inputs.json -e platform_acceptance_targets=testbox
+```
+
+The helper dispatches the actual discovery workflow and checks the downloaded
+JSON, source/run identity, native facts, counts and excluded secret-bearing fact
+families. Results retain the Gitea run URL in the controller artifact directory.
+For a no-target test, use `platform_acceptance_targets=testbox:!testbox` and
+`platform_acceptance_outcome=no_targets`. Never run an all-managed-host test
+against inventory containing targets which have not been authorized for testing.
+
+Live acceptance then covers native Config Context/patterns, all/subset runs,
+partial failure with preserved facts, no-target behavior, permissions, runtime
+isolation, credential/trust failures, upload failure and idempotent updates.
+Inspect downloaded JSON and record actual run URLs/revisions and passed/failed/
+not-run results. No host expiry/reboot tests are implied by this feature request.

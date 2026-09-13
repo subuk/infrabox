@@ -1,0 +1,25 @@
+runner:
+  file: /data/.runner
+  capacity: 1
+  timeout: 25m
+  insecure: false
+  labels: ['infrabox-platform:host']
+  envs:
+    SSL_CERT_FILE: /run/platform/trust/ca-bundle.crt
+    GIT_SSL_CAINFO: /run/platform/trust/ca-bundle.crt
+    NODE_EXTRA_CA_CERTS: /run/platform/trust/root-ca.crt
+    PLATFORM_BAO_TOKEN_FILE: /run/platform/secrets/bao-token
+    VAULT_ADDR: '{{ platform_bao_url }}'
+    PLATFORM_KV_MOUNT: '{{ platform_kv_mount }}'
+    VAULT_CACERT: /run/platform/trust/root-ca.crt
+    ANSIBLE_HASHI_VAULT_TOKEN_PATH: /run/platform/secrets
+    ANSIBLE_HASHI_VAULT_TOKEN_FILE: bao-token
+host:
+  workdir_parent: /data/workspaces
+container:
+  require_docker: false
+cache:
+  enabled: false
+metrics:
+  enabled: true
+  addr: 127.0.0.1:9101

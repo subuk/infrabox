@@ -1,0 +1,64 @@
+---
+- name: Verify Platform discovery on explicitly selected authorized targets
+  hosts: infrabox
+  become: true
+  tasks:
+    - name: Require explicit discovery acceptance targets
+      ansible.builtin.assert:
+        that:
+          - platform_enabled | default(false) | bool
+          - platform_acceptance_targets | default('') | length > 0
+        fail_msg: Supply an Ansible pattern restricted to the authorized test host(s).
+    - name: Verify Platform runtime
+      ansible.builtin.include_role:
+        name: platform
+        tasks_from: verify
+        public: true
+    - name: Install acceptance helper
+      ansible.builtin.copy:
+        src: scripts/test-platform-compatibility.py
+        dest: /usr/local/libexec/infrabox-platform/test-compatibility.py
+        mode: '0700'
+    - name: Dispatch discovery and verify downloaded native facts
+      ansible.builtin.command:
+        argv: [python3, /usr/local/libexec/infrabox-platform/test-compatibility.py]
+        stdin: '{{ platform_acceptance_parameters | to_json }}'
+      vars:
+        platform_acceptance_parameters:
+          workflow: discover.yml
+          targets: '{{ platform_acceptance_targets }}'
+          expected_outcome: '{{ platform_acceptance_outcome | default("success") }}'
+          gitea_url: '{{ platform_gitea_url }}'
+          organization: '{{ platform_organization }}'
+          repository: '{{ platform_repository }}'
+          branch: '{{ platform_branch }}'
+          username: '{{ gitea_admin_username | default("admin") }}'
+          password: '{{ gitea_admin_password }}'
+          ca: '{{ infrabox_root_ca_path }}'
+      no_log: true
+      register: platform_acceptance
+      changed_when: true
+      failed_when: false
+      async: 480
+      poll: 5
+    - name: Create local evidence directory
+      ansible.builtin.file:
+        path: '{{ playbook_dir }}/artifacts/{{ inventory_hostname }}'
+        state: directory
+        mode: '0700'
+      delegate_to: localhost
+      become: false
+    - name: Save sanitized discovery result on the controller
+      ansible.builtin.copy:
+        content: '{{ platform_acceptance.stdout }}'
+        dest: '{{ playbook_dir }}/artifacts/{{ inventory_hostname }}/platform-discovery-{{ (platform_acceptance.stdout | from_json).run_id | default("failed") }}.json'
+        mode: '0600'
+      delegate_to: localhost
+      become: false
+    - name: Show sanitized acceptance result
+      ansible.builtin.debug:
+        msg: '{{ platform_acceptance.stdout | from_json }}'
+    - name: Require successful live discovery acceptance
+      ansible.builtin.assert:
+        that: platform_acceptance.rc == 0
+        fail_msg: Platform discovery acceptance failed; inspect its retained Gitea run.

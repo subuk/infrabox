@@ -1,0 +1,46 @@
+---
+- name: 'Manage Platform integration: {{ platform_action }}'
+  ansible.builtin.command:
+    argv: [python3, /usr/local/libexec/infrabox-platform/manage.py]
+    stdin: '{{ platform_management | to_json }}'
+  vars:
+    platform_management:
+      action: '{{ platform_action }}'
+      directory: '{{ platform_directory }}'
+      storage: '{{ platform_storage }}'
+      source_dir: '{{ platform_build_root }}/{{ platform_revision }}'
+      source: '{{ platform_source_info.source }}'
+      ref: '{{ platform_ref }}'
+      revision: '{{ platform_revision }}'
+      generation: '{{ platform_generation }}'
+      image: '{{ platform_image }}'
+      gitea_url: '{{ platform_gitea_url }}'
+      netbox_url: '{{ platform_netbox_url }}'
+      admin_user: '{{ gitea_admin_username | default("admin") }}'
+      admin_password: '{{ gitea_admin_password }}'
+      organization: '{{ platform_organization }}'
+      repository: '{{ platform_repository }}'
+      provisioner: '{{ platform_provisioner }}'
+      branch: '{{ platform_branch }}'
+      operators: '{{ platform_operators }}'
+      ca: '{{ infrabox_root_ca_path }}'
+      mount: '{{ platform_kv_mount }}'
+      token_period: '{{ platform_token_period | int }}'
+      bao_socket: '{{ platform_bao_socket }}'
+      root_token: '{{ (lookup("ansible.builtin.file", playbook_dir ~ "/.secrets/" ~ inventory_hostname ~ "/openbao-init.json") | from_json).root_token }}'
+      variables:
+        NETBOX_API: '{{ platform_netbox_url }}'
+        VAULT_ADDR: '{{ platform_bao_url }}'
+        PLATFORM_KV_MOUNT: '{{ platform_kv_mount }}'
+        PLATFORM_MANAGED_TAG: '{{ platform_managed_tag }}'
+        PLATFORM_UPSTREAM: '{{ platform_source_info.source }}'
+        PLATFORM_REF: '{{ platform_ref }}'
+        PLATFORM_REVISION: '{{ platform_revision }}'
+  register: platform_management_result
+  changed_when: platform_management_result.rc == 0 and (platform_management_result.stdout | from_json).changed
+  failed_when: false
+  no_log: true
+- name: Require successful Platform management
+  ansible.builtin.assert:
+    that: platform_management_result.rc == 0
+    fail_msg: '{{ platform_management_result.stderr }}'

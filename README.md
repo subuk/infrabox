@@ -1,5 +1,9 @@
 # InfraBox Ansible
 
+Optional Platform facts discovery is documented in [docs/platform.md](docs/platform.md).
+It uses a dedicated trusted runner and native NetBox Config Context/Ansible patterns;
+implementation and live acceptance status are tracked in IMPLEMENTATION_STATUS.md.
+
 InfraBox deploys a single-node AlmaLinux 10 appliance through Ansible and Podman
 Quadlet. The implementation contract is [InfraBox_plan.md](InfraBox_plan.md);
 [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) records the completed

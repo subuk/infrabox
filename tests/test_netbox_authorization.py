@@ -36,7 +36,8 @@ class BoundaryTests(unittest.TestCase):
         template = Path(__file__).resolve().parents[1] / 'roles/netbox/templates/infrabox_auth.py.j2'
         environment = Environment()
         environment.filters['to_json'] = json.dumps
-        code = environment.from_string(template.read_text()).render(netbox_openclaw_username='infrabox-openclaw')
+        environment.filters['bool'] = bool
+        code = environment.from_string(template.read_text()).render(netbox_openclaw_username='infrabox-openclaw', platform_enabled=True)
         namespace = {}
         with patch.dict(sys.modules, modules):
             exec(compile(code, str(template), 'exec'), namespace)
@@ -57,6 +58,13 @@ class BoundaryTests(unittest.TestCase):
         self.assertTrue(self.backend.has_perm(user, 'dcim.add_device'))
         self.assertFalse(self.backend.has_perm(user, 'dcim.delete_device'))
         self.assertFalse(self.backend.has_perm(user, 'users.add_user'))
+
+    def test_platform_cannot_reach_fallback_implicit_grants(self):
+        user = self.user('infrabox-platform')
+        for permission in DEFAULTS:
+            with self.assertRaises(PermissionDenied):
+                self.backend.has_perm(user, permission)
+        self.assertEqual(self.backend.get_object_permissions(user), {'dcim.add_device': [None]})
 
     def test_human_self_service_is_preserved(self):
         user = self.user('human')

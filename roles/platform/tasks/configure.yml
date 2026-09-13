@@ -1,0 +1,145 @@
+---
+- name: Read private backend network ranges before cutover
+  ansible.builtin.command:
+    argv: [podman, network, inspect, infrabox, --format, '{{ "{{json .Subnets}}" }}']
+  register: platform_backend
+  changed_when: false
+- name: Fingerprint public trust before cutover
+  ansible.builtin.stat:
+    path: '{{ item }}'
+    follow: true
+    checksum_algorithm: sha256
+  loop: ['{{ infrabox_root_ca_path }}', /etc/pki/tls/certs/ca-bundle.crt]
+  register: platform_trust_sources
+- name: Compute desired Platform generation before any runtime changes
+  ansible.builtin.set_fact:
+    platform_generation: '{{ platform_generation_inputs | to_json | hash("sha256") }}'
+  vars:
+    platform_generation_inputs:
+      revision: '{{ platform_revision }}'
+      repository: '{{ platform_gitea_url }}/{{ platform_organization }}/{{ platform_repository }}'
+      branch: '{{ platform_branch }}'
+      token_period: '{{ platform_token_period }}'
+      managed_tag: '{{ platform_managed_tag }}'
+      netbox_url: '{{ platform_netbox_url }}'
+      operators: '{{ platform_operators }}'
+      trust: '{{ platform_trust_sources.results | map(attribute="stat.checksum") | list }}'
+      ssh_trust: '{{ lookup("ansible.builtin.file", platform_known_hosts_file) if platform_known_hosts_file | length > 0 else "" }}'
+      management: '{{ lookup("ansible.builtin.file", role_path ~ "/files/manage.py") }}'
+      identity: '{{ lookup("ansible.builtin.file", role_path ~ "/files/netbox-identity.py") }}'
+      authorization: '{{ lookup("ansible.builtin.file", playbook_dir ~ "/roles/netbox/templates/infrabox_auth.py.j2") }}'
+      container: '{{ lookup("ansible.builtin.template", "runner.container.j2") }}'
+      runner: '{{ lookup("ansible.builtin.template", "runner.yml.j2") }}'
+      firewall: '{{ lookup("ansible.builtin.template", "firewall.nft.j2") }}'
+      firewall_unit: '{{ lookup("ansible.builtin.template", "firewall.service.j2") }}'
+      renewal: '{{ lookup("ansible.builtin.template", "token-renew.j2") }}'
+      renewal_unit: '{{ lookup("ansible.builtin.template", "token-renew.service.j2") }}'
+      renewal_timer: '{{ lookup("ansible.builtin.template", "token-renew.timer.j2") }}'
+- name: Drain runner before changed configuration or code
+  ansible.builtin.include_tasks: manage.yml
+  vars:
+    platform_action: prepare
+- name: Allocate isolated runner namespace IDs
+  ansible.builtin.script: '{{ playbook_dir }}/roles/gitea_runner/files/allocate-subids.py'
+  register: platform_subids
+  changed_when: platform_subids.stdout | trim == 'changed'
+- name: Render Platform firewall
+  ansible.builtin.template:
+    src: firewall.nft.j2
+    dest: '{{ platform_directory }}/firewall.nft'
+    mode: '0600'
+    validate: nft --check --file %s
+  register: platform_firewall
+- name: Install Platform firewall service
+  ansible.builtin.template:
+    src: firewall.service.j2
+    dest: /etc/systemd/system/infrabox-platform-firewall.service
+    mode: '0644'
+  register: platform_firewall_unit
+- name: Apply network restrictions before runner creation
+  ansible.builtin.systemd_service:
+    name: infrabox-platform-firewall.service
+    daemon_reload: '{{ platform_firewall_unit.changed }}'
+    enabled: true
+    state: '{{ "restarted" if platform_firewall.changed else "started" }}'
+- name: Define isolated Platform network
+  ansible.builtin.include_role:
+    name: quadlet
+  vars:
+    quadlet_name: infrabox-platform
+    quadlet_type: network
+    quadlet_definition: |
+      [Network]
+      NetworkName=infrabox-platform
+      InterfaceName={{ platform_interface }}
+      Subnet={{ platform_subnet }}
+      Subnet={{ platform_ipv6_subnet }}
+      IPv6=true
+      [Install]
+      WantedBy=multi-user.target
+- name: Copy public CA and combined system trust
+  ansible.builtin.copy:
+    src: '{{ item.src }}'
+    dest: '{{ platform_directory }}/trust/{{ item.name }}'
+    remote_src: true
+    mode: '0644'
+  loop:
+    - {src: '{{ infrabox_root_ca_path }}', name: root-ca.crt}
+    - {src: /etc/pki/tls/certs/ca-bundle.crt, name: ca-bundle.crt}
+  register: platform_trust
+- name: Preserve an initially empty SSH trust file pending operator setup
+  ansible.builtin.copy:
+    content: ''
+    dest: '{{ platform_directory }}/trust/known_hosts'
+    force: false
+    mode: '0644'
+- name: Install operator-supplied host trust
+  ansible.builtin.copy:
+    src: '{{ platform_known_hosts_file }}'
+    dest: '{{ platform_directory }}/trust/known_hosts'
+    mode: '0644'
+  when: platform_known_hosts_file | length > 0
+  register: platform_ssh_trust
+- name: Apply service identity permissions through the NetBox role
+  ansible.builtin.include_role:
+    name: netbox
+- name: Reconcile identities and synchronize execution branch
+  ansible.builtin.include_tasks: manage.yml
+  vars:
+    platform_action: configure
+- name: Record management changes for runtime application
+  ansible.builtin.set_fact:
+    platform_management_changed: '{{ platform_management_result.changed }}'
+- name: Apply Platform edge restrictions through the owning role
+  ansible.builtin.include_role:
+    name: nginx
+- name: Render trusted runner configuration
+  ansible.builtin.template:
+    src: runner.yml.j2
+    dest: '{{ platform_directory }}/runner.yml'
+    mode: '0644'
+  register: platform_runner_config
+- name: Register repository-scoped runner
+  ansible.builtin.include_tasks: manage.yml
+  vars:
+    platform_action: register
+- name: Define Platform runner Quadlet
+  ansible.builtin.include_role:
+    name: quadlet
+    tasks_from: configure
+  vars:
+    quadlet_name: platform-runner
+    quadlet_type: container
+    quadlet_definition: '{{ lookup("ansible.builtin.template", "runner.container.j2") }}'
+- name: Install token self-renewal helper
+  ansible.builtin.template:
+    src: token-renew.j2
+    dest: /usr/local/libexec/infrabox-platform/token-renew
+    mode: '0700'
+- name: Install token renewal units
+  ansible.builtin.template:
+    src: 'token-renew.{{ item }}.j2'
+    dest: '/etc/systemd/system/platform-token-renew.{{ item }}'
+    mode: '0644'
+  loop: [service, timer]
+  register: platform_renew_units

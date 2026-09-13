@@ -1,0 +1,29 @@
+---
+- name: Verify trusted runner readiness
+  ansible.builtin.command:
+    argv: [podman, exec, platform-runner, python3, -c, 'from urllib.request import urlopen; assert urlopen("http://127.0.0.1:9101/readyz", timeout=5).status == 200']
+  register: platform_ready
+  retries: 20
+  delay: 3
+  until: platform_ready.rc == 0
+  changed_when: false
+- name: Verify mapped host UID
+  ansible.builtin.command:
+    argv: [podman, exec, platform-runner, cat, /proc/self/uid_map]
+  changed_when: false
+  register: platform_uid
+- name: Require isolated UID mapping
+  ansible.builtin.assert:
+    that: platform_uid.stdout.split()[1] | int != 0
+- name: Verify Platform service access and runtime isolation
+  ansible.builtin.command:
+    argv: [python3, /usr/local/libexec/infrabox-platform/verify-runtime.py]
+    stdin: '{{ platform_verify_parameters | to_json }}'
+  vars:
+    platform_verify_parameters:
+      gitea_url: '{{ platform_gitea_url }}'
+      netbox_url: '{{ platform_netbox_url }}'
+      bao_url: '{{ platform_bao_url }}'
+      grafana_url: 'https://grafana.{{ infrabox_domain }}/'
+      openclaw_url: 'https://{{ openclaw_hostname | default("claw." ~ infrabox_domain) }}/'
+  changed_when: false

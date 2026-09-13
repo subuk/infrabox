@@ -1,0 +1,7 @@
+#!/bin/bash
+set -euo pipefail
+export BAO_ADDR={{ platform_bao_url | quote }}
+export BAO_CACERT={{ infrabox_root_ca_path | quote }}
+BAO_TOKEN=$(cat {{ (platform_directory ~ '/secrets/bao-token') | quote }})
+export BAO_TOKEN
+exec /usr/local/bin/bao token renew -format=json >/dev/null

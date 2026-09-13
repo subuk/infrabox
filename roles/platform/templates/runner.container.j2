@@ -1,0 +1,31 @@
+[Unit]
+Description=InfraBox trusted Platform runner
+After=nginx.service gitea.service infrabox-platform-firewall.service
+Requires=infrabox-platform-firewall.service
+[Container]
+Image={{ platform_image }}
+ContainerName=platform-runner
+Network=infrabox-platform.network
+UserNS=auto:size=65536
+DropCapability=all
+NoNewPrivileges=true
+PidsLimit=512
+Volume={{ platform_storage }}:/data:Z,U
+Volume={{ platform_directory }}/runner.yml:/config.yml:ro,Z
+Volume={{ platform_directory }}/trust:/run/platform/trust:ro,z,U
+Volume={{ platform_directory }}/secrets:/run/platform/secrets:ro,Z,U
+Tmpfs=/run/platform-jobs:rw,nosuid,nodev,size=128m,mode=0700
+Environment=SSL_CERT_FILE=/run/platform/trust/ca-bundle.crt
+Environment=GIT_SSL_CAINFO=/run/platform/trust/ca-bundle.crt
+Environment=NODE_EXTRA_CA_CERTS=/run/platform/trust/root-ca.crt
+Environment=PLATFORM_BAO_TOKEN_FILE=/run/platform/secrets/bao-token
+Environment=VAULT_ADDR={{ platform_bao_url }}
+Environment=PLATFORM_KV_MOUNT={{ platform_kv_mount }}
+WorkingDir=/data
+Exec=--config=/config.yml daemon
+[Service]
+Restart=on-failure
+MemoryMax=2G
+CPUQuota=200%
+[Install]
+WantedBy=multi-user.target

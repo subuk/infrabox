@@ -13,5 +13,6 @@
 - ansible.builtin.import_playbook: agent.yml
 - ansible.builtin.import_playbook: observability.yml
 - ansible.builtin.import_playbook: ci.yml
+- ansible.builtin.import_playbook: automation.yml
 - ansible.builtin.import_playbook: verify.yml
 - ansible.builtin.import_playbook: monitoring-verify.yml

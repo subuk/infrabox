@@ -15,6 +15,11 @@
       loop: [chrony, selinux, firewalld, podman, tpm2_pkcs11, openbao, openbao_bootstrap, openbao_agent, cacerts, postgresql, redis, gitea, netbox, nginx, prometheus, grafana, gitea_runner, openclaw]
       loop_control:
         loop_var: infrabox_verify_component
+    - name: Verify optional Platform runtime
+      ansible.builtin.include_role:
+        name: platform
+        tasks_from: verify
+      when: platform_enabled | default(false) | bool
     - name: Verify runtime isolation and certificate contracts
       ansible.builtin.script:
         cmd: 'scripts/verify-runtime.py {{ infrabox_domain }} {{ openclaw_hostname | default("claw." ~ infrabox_domain) }}'

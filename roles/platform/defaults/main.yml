@@ -1,0 +1,23 @@
+---
+platform_enabled: false
+platform_source: https://github.com/subuk/infrabox-platform.git
+platform_ref: master
+platform_organization: infrabox-platform
+platform_repository: automation
+platform_branch: master
+platform_provisioner: infrabox-provisioner
+platform_operators: []
+platform_subnet: 10.91.0.0/24
+platform_ipv6_subnet: fd90:91::/64
+platform_interface: ib-platform0
+platform_directory: '{{ infrabox_config_root }}/platform'
+platform_storage: '{{ infrabox_storage_root }}/platform-runner'
+platform_build_root: '{{ infrabox_storage_root }}/platform-build'
+platform_known_hosts_file: ''
+platform_kv_mount: kv
+platform_token_period: 604800
+platform_managed_tag: infrabox-managed
+platform_gitea_url: 'https://git.{{ infrabox_domain }}'
+platform_netbox_url: 'https://netbox.{{ infrabox_domain }}'
+platform_bao_url: 'https://vault.{{ infrabox_domain }}'
+platform_bao_socket: /run/infrabox-openbao/api.sock

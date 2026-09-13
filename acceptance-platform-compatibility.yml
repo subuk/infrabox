@@ -1,0 +1,58 @@
+---
+- name: Verify one-time Platform dispatch and artifact compatibility
+  hosts: infrabox
+  become: true
+  tasks:
+    - name: Require configured Platform
+      ansible.builtin.assert:
+        that: platform_enabled | default(false) | bool
+    - name: Verify Platform runtime
+      ansible.builtin.include_role:
+        name: platform
+        tasks_from: verify
+        public: true
+    - name: Install compatibility helper
+      ansible.builtin.copy:
+        src: scripts/test-platform-compatibility.py
+        dest: /usr/local/libexec/infrabox-platform/test-compatibility.py
+        mode: '0700'
+    - name: Dispatch gate and verify downloaded artifact
+      ansible.builtin.command:
+        argv: [python3, /usr/local/libexec/infrabox-platform/test-compatibility.py]
+        stdin: '{{ platform_gate_parameters | to_json }}'
+      vars:
+        platform_gate_parameters:
+          gitea_url: '{{ platform_gitea_url }}'
+          organization: '{{ platform_organization }}'
+          repository: '{{ platform_repository }}'
+          branch: '{{ platform_branch }}'
+          username: '{{ gitea_admin_username | default("admin") }}'
+          password: '{{ gitea_admin_password }}'
+          ca: '{{ infrabox_root_ca_path }}'
+      no_log: true
+      register: platform_gate
+      changed_when: true
+      failed_when: false
+      async: 480
+      poll: 5
+    - name: Create local evidence directory
+      ansible.builtin.file:
+        path: '{{ playbook_dir }}/artifacts/{{ inventory_hostname }}'
+        state: directory
+        mode: '0700'
+      delegate_to: localhost
+      become: false
+    - name: Save sanitized gate result on the controller
+      ansible.builtin.copy:
+        content: '{{ platform_gate.stdout }}'
+        dest: '{{ playbook_dir }}/artifacts/{{ inventory_hostname }}/platform-compatibility.json'
+        mode: '0600'
+      delegate_to: localhost
+      become: false
+    - name: Show sanitized gate result
+      ansible.builtin.debug:
+        msg: '{{ platform_gate.stdout | from_json }}'
+    - name: Require successful live compatibility gate
+      ansible.builtin.assert:
+        that: platform_gate.rc == 0
+        fail_msg: Platform compatibility failed; inspect its retained Gitea run.

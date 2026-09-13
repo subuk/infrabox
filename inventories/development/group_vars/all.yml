@@ -15,3 +15,9 @@ tpm2_pkcs11_key_label: openbao-unseal
 tpm2_pkcs11_key_bits: 3072
 tpm2_pkcs11_runtime_uid: 991
 tpm2_pkcs11_runtime_gid: 991
+
+# KRG-6 development uses a committed controller checkout; no GitHub push required.
+platform_enabled: true
+platform_source: '{{ playbook_dir }}/../infrabox-platform'
+platform_ref: master
+platform_known_hosts_file: '{{ playbook_dir }}/.secrets/infrabox1/platform/known_hosts'

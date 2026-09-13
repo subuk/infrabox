@@ -1,0 +1,86 @@
+---
+- name: Validate Platform deployment parameters
+  ansible.builtin.assert:
+    that:
+      - platform_token_period | int >= 3600
+      - platform_token_period | int <= 2592000
+      - platform_interface is match('^[a-zA-Z0-9_-]{1,15}$')
+      - platform_managed_tag is match('^[a-zA-Z0-9_-]+$')
+- name: Prepare committed source on the controller
+  ansible.builtin.command:
+    argv:
+      - '{{ ansible_playbook_python }}'
+      - '{{ playbook_dir }}/scripts/platform-source.py'
+      - --source
+      - '{{ platform_source }}'
+      - --ref
+      - '{{ platform_ref }}'
+      - --output
+      - '{{ playbook_dir }}/.secrets/{{ inventory_hostname }}/platform-bundles'
+  delegate_to: localhost
+  become: false
+  register: platform_prepared
+  changed_when: (platform_prepared.stdout | from_json).changed
+- name: Select the exact prepared revision
+  ansible.builtin.set_fact:
+    platform_source_info: '{{ platform_prepared.stdout | from_json }}'
+    platform_revision: '{{ (platform_prepared.stdout | from_json).revision }}'
+    platform_image: 'localhost/infrabox-platform:{{ (platform_prepared.stdout | from_json).revision }}'
+- name: Create private Platform directories
+  ansible.builtin.file:
+    path: '{{ item }}'
+    state: directory
+    mode: '0700'
+  loop:
+    - '{{ platform_directory }}'
+    - '{{ platform_directory }}/trust'
+    - '{{ platform_directory }}/secrets'
+    - '{{ platform_storage }}'
+    - '{{ platform_build_root }}'
+    - '{{ platform_build_root }}/{{ platform_revision }}'
+    - /usr/local/libexec/infrabox-platform
+- name: Install Platform management helpers
+  ansible.builtin.copy:
+    src: '{{ item }}'
+    dest: '/usr/local/libexec/infrabox-platform/{{ item }}'
+    mode: '0700'
+  loop: [manage.py, netbox-identity.py, verify-runtime.py]
+  register: platform_helpers
+- name: Copy exact source bundle to the appliance
+  ansible.builtin.copy:
+    src: '{{ platform_source_info.bundle }}'
+    dest: '{{ platform_build_root }}/{{ platform_revision }}.bundle'
+    mode: '0600'
+- name: Initialize revision staging checkout
+  ansible.builtin.command:
+    argv: [git, init, '{{ platform_build_root }}/{{ platform_revision }}']
+    creates: '{{ platform_build_root }}/{{ platform_revision }}/.git'
+- name: Read staged revision
+  ansible.builtin.command:
+    argv: [git, -C, '{{ platform_build_root }}/{{ platform_revision }}', rev-parse, --verify, HEAD]
+  register: platform_staged
+  changed_when: false
+  failed_when: platform_staged.rc not in [0, 128]
+- name: Import the committed bundle
+  ansible.builtin.command:
+    argv: [git, -C, '{{ platform_build_root }}/{{ platform_revision }}', fetch, --no-tags, '{{ platform_build_root }}/{{ platform_revision }}.bundle', refs/heads/platform-source]
+  when: platform_staged.stdout != platform_revision
+  changed_when: true
+- name: Checkout the selected source commit
+  ansible.builtin.command:
+    argv: [git, -C, '{{ platform_build_root }}/{{ platform_revision }}', checkout, --detach, '{{ platform_revision }}']
+  when: platform_staged.stdout != platform_revision
+  changed_when: true
+- name: Inspect the pinned Platform runtime
+  ansible.builtin.command:
+    argv: [podman, image, exists, '{{ platform_image }}']
+  register: platform_image_exists
+  changed_when: false
+  failed_when: platform_image_exists.rc not in [0, 1]
+- name: Build the runtime from the exact source revision
+  ansible.builtin.command:
+    argv: [podman, build, --build-arg, 'REVISION={{ platform_revision }}', -t, '{{ platform_image }}', -f, '{{ platform_build_root }}/{{ platform_revision }}/runtime/Containerfile', '{{ platform_build_root }}/{{ platform_revision }}']
+  when: platform_image_exists.rc != 0
+  changed_when: true
+  async: 1800
+  poll: 10

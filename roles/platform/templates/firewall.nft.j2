@@ -1,0 +1,18 @@
+table inet infrabox_platform {}
+flush table inet infrabox_platform
+table inet infrabox_platform {
+  chain input {
+    type filter hook input priority -10; policy accept;
+    iifname "{{ platform_interface }}" tcp dport { 53, 443 } accept
+    iifname "{{ platform_interface }}" udp dport 53 accept
+    iifname "{{ platform_interface }}" icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit } accept
+    iifname "{{ platform_interface }}" drop
+  }
+  chain forward {
+    type filter hook forward priority -10; policy accept;
+{% for item in platform_backend.stdout | from_json %}
+    iifname "{{ platform_interface }}" {{ 'ip6' if ':' in item.subnet else 'ip' }} daddr {{ item.subnet }} drop
+{% endfor %}
+    iifname "{{ platform_interface }}" ip daddr {{ gitea_runner_subnet | default('10.90.0.0/24') }} drop
+  }
+}

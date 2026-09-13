@@ -1,0 +1,9 @@
+---
+- ansible.builtin.import_tasks: install.yml
+  tags: [install]
+- ansible.builtin.import_tasks: configure.yml
+  tags: [configure]
+- ansible.builtin.import_tasks: service.yml
+  tags: [service]
+- ansible.builtin.import_tasks: verify.yml
+  tags: [verify]

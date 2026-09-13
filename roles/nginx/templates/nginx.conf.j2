@@ -9,6 +9,9 @@ http {
   sendfile on;
   server_tokens off;
   geo $infrabox_runner_client { default 0; 10.90.0.0/24 1; }
+{% if platform_enabled | default(false) | bool %}
+  geo $infrabox_platform_client { default 0; {{ platform_subnet | default('10.91.0.0/24') }} 1; {{ platform_ipv6_subnet | default('fd90:91::/64') }} 1; }
+{% endif %}
   map $http_upgrade $connection_upgrade { default upgrade; '' close; }
   server {
     listen 80 default_server;
@@ -27,6 +30,9 @@ http {
     client_max_body_size 1g;
 {% if upstream.name in ["vault", "grafana", "claw"] %}
     if ($infrabox_runner_client) { return 403; }
+{% endif %}
+{% if platform_enabled | default(false) | bool and upstream.name in ["grafana", "claw"] %}
+    if ($infrabox_platform_client) { return 403; }
 {% endif %}
     location / {
       proxy_pass {{ upstream.address }};

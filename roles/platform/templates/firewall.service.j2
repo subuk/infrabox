@@ -1,0 +1,11 @@
+[Unit]
+Description=InfraBox Platform network restrictions
+Before=platform-runner.service
+After=firewalld.service
+[Service]
+Type=oneshot
+RemainAfterExit=true
+ExecStart=/usr/sbin/nft -f {{ platform_directory }}/firewall.nft
+ExecReload=/usr/sbin/nft -f {{ platform_directory }}/firewall.nft
+[Install]
+WantedBy=multi-user.target

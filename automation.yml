@@ -1,0 +1,8 @@
+---
+- name: Deploy trusted Platform automation
+  hosts: infrabox
+  become: true
+  roles:
+    - role: platform
+      when: platform_enabled | default(false) | bool
+      tags: [platform]
