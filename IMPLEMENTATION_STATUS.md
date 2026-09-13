@@ -1,6 +1,6 @@
 # Implementation status
 
-## KRG-6 Platform discovery — 2026-09-13, managed-host acceptance pending
+## KRG-6 Platform discovery — 2026-09-13, single-host acceptance passed
 
 Implemented Platform source/runtime/workflows in the separate local
 `infrabox-platform` repository and optional Core provisioning in `automation.yml`.
@@ -83,14 +83,38 @@ The operator designated `almalinux@192.168.32.207` as the only managed test targ
 Its verified controller known_hosts entries are installed in Platform trust.
 The private key is available in OpenBao at `kv/platform/ssh/default`, field
 `private_key`, and on the controller at `/tmp/id_ed25519`; it is only for testbox,
-not the appliance. Direct SSH to the designated testbox with that local key and
-host-key checking passed (`true` only); this is not workflow facts acceptance. Device `testbox` (ID 12) still has no platform, managed tag or
-Config Context. A question to populate Linux / infrabox-managed /
-`ansible_host=192.168.32.207` / `ansible_user=almalinux` is pending. Successful
-managed-host discovery has not run. Live all/subset/partial-failure scenarios,
-credential/trust failure injection, operator permission probes and token recovery
-remain unverified. No reboot, certificate expiry, other managed-host connection
-or NetBox inventory write was performed in these checks.
+not the appliance. Direct SSH with that local key and host-key checking passed.
+
+The operator updated Device ID 12 to `testbox.net.krglv.com`, tagged it
+`infrabox-managed`, and supplied native Config Context variables
+`ansible_host=192.168.32.207` and `ansible_user=almalinux`. Platform and primary IP
+remain empty; native SSH gathering works with these context variables and no
+additional Platform OS restriction. No NetBox inventory write was made by this
+implementation or acceptance.
+
+Live discovery run 178 on final Platform revision
+`e0af645f3decb0c2a1381145a25808f4896f4c10` passed with exactly one selected and
+successful host, Device ID 12. The native facts report AlmaLinux 10.2, kernel
+`6.12.0-211.47.1.el10_2.x86_64`, one logical CPU and 1961 MiB memory. All workflow
+steps passed, including exact-SHA checkout, facts gathering, v4 upload and cleanup.
+The downloaded archive contains only `run.json`, `summary.md` and
+`facts/device-12.json`; run/revision/counts/native facts and excluded sensitive
+fact families were checked. Evidence: `platform-discovery-178.json` and private
+local extracted results in `platform-discovery-178/` under the controller
+artifact directory. The managed-host prerequisite blocker is resolved.
+
+A native rerun of the same Gitea run also passed on the same single target.
+Attempt `2` produced separate artifact ID 6 (`discovery-178-2`) while preserving
+artifact ID 5 (`discovery-178-1`). Downloaded manifest attempt/run/revision and
+facts were checked again. Evidence: `platform-discovery-rerun-178.json` and
+`platform-discovery-178-attempt-2/`. This confirms that the native workflow
+attempt context distinguishes reruns despite the REST run field reporting zero.
+
+Live all-host/partial-failure scenarios, credential/trust failure injection,
+operator permission probes and token replacement/revocation recovery remain
+unverified. Actual inventory-plugin/native-Ansible fixture tests cover selection
+and partial result preservation, but do not establish those live scenarios.
+No reboot, certificate expiry or connection to another managed host was performed.
 
 ## KRG-15 continuous monitoring — 2026-09-12/13
 
