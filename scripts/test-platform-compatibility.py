@@ -111,7 +111,7 @@ def run(c, report):
     details = request(repo + '/actions/workflows/' + workflow + '/dispatches?return_run_details=true', payload)
     run_id = int(details['workflow_run_id'])
     report.update(run_id=run_id, run_url=details['html_url'])
-    deadline = time.monotonic() + 420
+    deadline = time.monotonic() + (1260 if workflow == 'discover.yml' else 420)
     while time.monotonic() < deadline:
         result = request(repo + '/actions/runs/' + str(run_id))
         if result['head_sha'] != revision:

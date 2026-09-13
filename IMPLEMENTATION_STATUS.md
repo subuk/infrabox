@@ -1,73 +1,96 @@
 # Implementation status
 
-## KRG-6 Platform discovery — 2026-09-13, live acceptance pending
+## KRG-6 Platform discovery — 2026-09-13, managed-host acceptance pending
 
-Implemented the Platform source/runtime/workflows in the separate local
+Implemented Platform source/runtime/workflows in the separate local
 `infrabox-platform` repository and optional Core provisioning in `automation.yml`.
 The existing `platform.yml` remains the foundation Podman/TPM playbook.
-Development selects a committed local Platform checkout and transfers a Git bundle;
-no GitHub push has been made. Updates force-synchronize the selected execution
-branch while preserving repository history of runs, artifacts and settings.
+Development selects committed local Platform history and transfers a Git bundle;
+no GitHub push has been made. Updates force-synchronize the execution branch while
+preserving repository settings, run history, artifacts and runner registration.
 
-The implementation uses native NetBox Config Context flattening, native Ansible
-patterns and facts, separate repository-scoped runner/network/UID mapping,
-read-only NetBox credentials and an independent renewable OpenBao token. Target
-SSH credentials are operator-managed at `kv/platform/ssh/default`, field
-`private_key`. External checkout/upload Actions are pinned by commit. No Platform
-pipeline monitoring or scheduled discovery was added.
+The implementation uses native NetBox Config Context flattening, Ansible patterns
+and facts, a separate repository-scoped runner/network/UID mapping, read-only
+NetBox credentials and an independent renewable OpenBao token. Native connection
+variables and ports remain under Ansible control, without an OS restriction.
+External checkout/upload Actions are pinned by commit. No Platform scheduler or
+pipeline monitoring was added.
 
-Completed local checks:
+The authorized existing appliance is `infrabox1`, `almalinux@192.168.32.206`, with
+`inventories/development/hosts.yml` and preserved TPM/domain/controller inputs.
+Live deployment of Platform `45f544eaa81b2561480694b659a8123fa1505bfb` completed:
+`ok=92 changed=6 failed=0`. Local Gitea's branch and the runner's embedded revision
+matched. Final source `e0af645f3decb0c2a1381145a25808f4896f4c10` removes the temporary
+compatibility workflow and adds explicit missing-credential-field reasons;
+its final deployment completed with `ok=95 changed=13 failed=0`. The final
+component checks passed, and Gitea/runtime revisions match.
 
-- Core Python unit tests: 49 passed; existing Node tests: 5 passed.
-- Ansible syntax: `site.yml`, `automation.yml`, `verify.yml`, and
-  `acceptance-platform.yml` / `acceptance-platform-compatibility.yml` passed
-  with explicit development inventory.
-- Platform Python tests: 6 passed on the controller and in the Linux amd64
-  runtime container with capabilities dropped and no-new-privileges enabled.
-  Fixtures use the actual pinned NetBox inventory plugin and actual Ansible
-  local fact gathering: arbitrary flattened variables, native addresses/patterns,
-  no-target failure, partial success, denied inventory and exclusion of
-  credential-bearing errors.
-- The pinned runtime built locally. Runner 3.4.2, Node 22.20.0, Ansible Core
-  2.19.7, Git and SSH executed successfully; `pip check` passed.
+Completed live checks:
 
-The authorized existing appliance is `infrabox1` at `almalinux@192.168.32.206`,
-using `inventories/development/hosts.yml` and preserved TPM/domain/controller
-inputs. A live deployment completed with `ok=98 changed=22 failed=0`, installing
-Platform commit `8f4f4a0d2500aef724d7fa84650834ce687d2af5`. Local Gitea's execution
-branch and the runner's embedded revision matched. Provisioning created scoped
-NetBox/OpenBao/Gitea identities and repository runner, enforced branch/team ACLs,
-and enabled token self-renewal. The existing NetBox authorization backend now
-excludes implicit personal-object permissions for Platform as it does for
-OpenClaw; Platform's API token also has writes disabled.
+- Runtime readiness, actual scoped OpenBao/NetBox HTTPS reads, denied Core secrets,
+  UID/capability/SELinux confinement, no socket mounts, backend/management port
+  isolation and expected local HTTPS restrictions passed. NetBox web/worker
+  PostgreSQL and Redis TLS and nginx application readiness also passed.
+- Gitea compatibility run 166 passed dispatch, exact-SHA checkout, v4 upload and
+  REST download with an exact 41-byte payload. The action requested seven-day
+  retention; Gitea recorded creation `2026-09-13T12:49:24Z` and expiration
+  `2026-09-19T12:49:24Z` (six elapsed days). Actual expiry cleanup was not waited for.
+  The workflow context reports attempt `1`; the REST run field reports `0`.
+- Real discovery run 168 with `testbox:!testbox` passed negative acceptance:
+  workflow failure with `no_targets`, zero selected hosts, retained downloaded
+  JSON/summary and successful workspace cleanup. No target connection was made.
+- Native `platform-token-renew.service` renewed the seven-day scoped token and
+  preserved token/registration files, NetBox credential/version and Platform/
+  NetBox container identities. Token replacement/revocation recovery is not yet
+  live-accepted.
 
-Live component checks passed actual HTTPS NetBox reads using the mounted scoped
-credential, denial of Core secrets, UID/capability/SELinux confinement, backend
-and management port isolation, and the expected local HTTPS access restrictions.
-NetBox web/worker PostgreSQL and Redis TLS checks passed after their configuration
-restart. Evidence: `artifacts/infrabox1/platform-deploy.log`.
+Earlier failed checks were diagnosed and repaired in their owning code/config:
+Gitea REST exposes v4 artifacts, so the initial successful v3 upload in run 111
+could not be downloaded by the acceptance API; the pinned Gitea-compatible v4
+fork now passes. Healthy reruns read Actions variable values from response field
+`data` while writes use `value`. Granular teams return top-level `permission=none`
+and effective Code Read / Actions Write in `units_map`; comparison now uses that
+representation. Regression tests cover stable reads and repair of code-write
+permission drift. Run 167 found the
+operator key under `sshkey`; the identical value was added as agreed `private_key`
+in the same OpenBao secret, preserving the existing field. No key was generated
+or replaced. Discovery now reports missing expected fields explicitly.
 
-Compatibility run 111 completed successfully in Gitea: checkout matched the source
-SHA and the v3 action uploaded 41 bytes. The acceptance helper failed its REST
-artifact lookup: this Gitea version lists/downloads only v4 artifacts through
-those endpoints. Evidence: `platform-compatibility.log` and
-`platform-compatibility.json` in the same controller artifact directory.
-The local Platform candidate `45f544e` switches to a pinned Gitea-compatible v4
-upload action; it has **not yet been deployed or passed its live gate**.
+Current local checks: 52 Core Python tests, seven Platform tests on the controller
+and in the final Linux runtime with no network/capabilities, and relevant Ansible
+syntax checks passed. Earlier five Node tests passed; no Node code changed here.
+Fixtures exercise the actual pinned NetBox inventory plugin and native Ansible
+selection/facts, arbitrary flattened variables, partial success, denied inventory
+and exclusion of credential-bearing output. They do not establish live multi-host
+acceptance.
 
-Subsequent SSH authentication failed again: the server accepted the controller
-public key but signing did not complete, and the SSH agent was empty. Further
-deployment requires restoring controller SSH access. The extended configuration
-fingerprint/drain logic is also pending live application. Idempotent reruns,
-token lifecycle acceptance and managed-host discovery remain unverified.
+Evidence under `artifacts/infrabox1/`: `platform-deploy-v4-repair.log`,
+`platform-compatibility-166.json`, `platform-discovery-168.json`. Earlier failed
+`platform-deploy-v4.log` and `platform-discovery-167.json` remain failed evidence.
+Final deployment evidence: `platform-deploy-final.log`. The first healthy-rerun check (`platform-idempotence.log`) reported three changes
+and restarted the runner because of the granular-team comparison above. Its
+preservation check (`platform-preservation-first.json`) confirmed unchanged
+credentials/registration and NetBox token/version, but failed container identity
+preservation. The correction deployed successfully (`platform-idempotence-repair.log`,
+`ok=91 changed=5 failed=0`). The final healthy rerun then passed with
+`ok=90 changed=0 failed=0`; token/registration file hashes, inodes and mtimes,
+NetBox credential/version, and Platform/NetBox container identities all remained
+unchanged. Evidence: `platform-idempotence-final.log`,
+`platform-preservation-final.json` and `platform-renewal.json`. Temporary baseline
+state was removed after comparison.
 
-The operator designated `almalinux@192.168.32.207` for discovery. Its existing
-controller known_hosts entries were copied into protected Platform trust input.
-The operator confirmed its public key and OpenBao private key are installed and
-created Device `testbox` (ID 12). The latest read of that record still had no
-primary IP/platform/tag/Config Context, so discovery prerequisites are pending.
-No managed-host discovery has run. The temporary compatibility workflow remains
-until its live gate succeeds; broader acceptance and removal remain outstanding.
+The operator designated `almalinux@192.168.32.207` as the only managed test target.
+Its verified controller known_hosts entries are installed in Platform trust.
+The private key is available in OpenBao at `kv/platform/ssh/default`, field
+`private_key`, and on the controller at `/tmp/id_ed25519`; it is only for testbox,
+not the appliance. Direct SSH to the designated testbox with that local key and
+host-key checking passed (`true` only); this is not workflow facts acceptance. Device `testbox` (ID 12) still has no platform, managed tag or
+Config Context. A question to populate Linux / infrabox-managed /
+`ansible_host=192.168.32.207` / `ansible_user=almalinux` is pending. Successful
+managed-host discovery has not run. Live all/subset/partial-failure scenarios,
+credential/trust failure injection, operator permission probes and token recovery
+remain unverified. No reboot, certificate expiry, other managed-host connection
+or NetBox inventory write was performed in these checks.
 
 ## KRG-15 continuous monitoring — 2026-09-12/13
 

@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import traceback
 from urllib.error import HTTPError
 from urllib.request import Request, build_opener, HTTPSHandler, HTTPRedirectHandler, ProxyHandler
 
@@ -221,7 +222,8 @@ class Manager:
                     'can_create_org_repo': False, 'includes_all_repositories': False}
         if team is None:
             team = self.api(org + '/teams', settings, 'POST'); self.changed = True
-        elif any(team.get(k) != v for k, v in settings.items()):
+        # Gitea reports permission=none for granular units_map teams.
+        elif any(team.get(k) != v for k, v in {**settings, 'permission': 'none'}.items()):
             team = self.api('/teams/' + str(team['id']), settings, 'PATCH'); self.changed = True
         team_path = '/teams/' + str(team['id'])
         if self.api(team_path + '/repos/' + c['organization'] + '/' + c['repository'], missing=True) is None:
@@ -245,7 +247,7 @@ class Manager:
         for name, value in self.c['variables'].items():
             path = self.repo + '/actions/variables/' + name
             current = self.api(path, missing=True)
-            if not current or current['value'] != str(value):
+            if not current or current['data'] != str(value):
                 self.api(path, {'value': str(value)}, 'POST' if current is None else 'PUT')
                 self.changed = True
 
@@ -377,5 +379,9 @@ if __name__ == '__main__':
             fcntl.flock(lock, fcntl.LOCK_EX)
             print(json.dumps(Manager(c).run()))
     except Exception as error:
-        print(str(error) if isinstance(error, ManagementError) else 'Platform management failed: ' + type(error).__name__, file=sys.stderr)
+        location = traceback.extract_tb(error.__traceback__)[-1]
+        message = str(error) if isinstance(error, ManagementError) else (
+            'Platform management failed: ' + type(error).__name__ +
+            ' at ' + Path(location.filename).name + ':' + str(location.lineno))
+        print(message, file=sys.stderr)
         sys.exit(1)

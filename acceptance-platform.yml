@@ -39,7 +39,7 @@
       register: platform_acceptance
       changed_when: true
       failed_when: false
-      async: 480
+      async: 1320
       poll: 5
     - name: Create local evidence directory
       ansible.builtin.file:

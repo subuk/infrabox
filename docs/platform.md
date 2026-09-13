@@ -1,8 +1,9 @@
 # Platform discovery deployment
 
 KRG-6 adds an optional trusted Platform runner and managed Gitea automation
-repository. Implementation is in progress; live deployment/acceptance evidence
-is recorded separately in IMPLEMENTATION_STATUS.md. No discovery monitoring is
+repository. Live deployment and the Gitea v4 artifact gate have passed on the
+development appliance; managed-host acceptance and remaining checks are tracked
+in IMPLEMENTATION_STATUS.md. No discovery monitoring is
 added. The generic CI runner keeps its existing identity and restrictions.
 
 ## Configure and deploy
@@ -102,9 +103,11 @@ upload alone does not satisfy the REST download acceptance check.
 ## Verification
 
 Run Core syntax/unit checks and Platform fixture tests before deployment. The
-initial compatibility gate checks manual dispatch, actual local SHA checkout,
-and a tiny downloaded artifact on the pinned Gitea/runner versions. Its temporary
-workflow is removed after that gate succeeds.
+initial compatibility gate checked manual dispatch, actual local SHA checkout,
+and a tiny downloaded artifact on the pinned Gitea/runner versions. It passed on
+the development appliance and its temporary workflow was removed. The following
+command is only for a revision that still contains that temporary workflow;
+normal acceptance uses the discovery command below.
 
 ```sh
 .venv/bin/ansible-playbook -i inventories/local/hosts.yml acceptance-platform-compatibility.yml -e @.secrets/infrabox1/inputs.json
@@ -123,9 +126,9 @@ explicitly authorized target's native inventory name):
 .venv/bin/ansible-playbook -i inventories/local/hosts.yml acceptance-platform.yml -e @.secrets/infrabox1/inputs.json -e platform_acceptance_targets=testbox
 ```
 
-The helper dispatches the actual discovery workflow and checks the downloaded
-JSON, source/run identity, native facts, counts and excluded secret-bearing fact
-families. Results retain the Gitea run URL in the controller artifact directory.
+The helper allows the discovery workflow its full execution/upload deadline and
+checks downloaded JSON, source/run identity, native facts, counts and excluded
+secret-bearing fact families. Results retain the Gitea run URL in the controller artifact directory.
 For a no-target test, use `platform_acceptance_targets=testbox:!testbox` and
 `platform_acceptance_outcome=no_targets`. Never run an all-managed-host test
 against inventory containing targets which have not been authorized for testing.
