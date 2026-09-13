@@ -58,4 +58,18 @@ http {
     }
   }
 {% endfor %}
+  server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name {{ infrabox_domain }};
+    ssl_certificate {{ infrabox_pki_root }}/nginx/server-chain.crt;
+    ssl_certificate_key {{ infrabox_pki_root }}/nginx/server.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    root {{ nginx_landing_root }};
+    index index.html;
+    add_header Cache-Control "no-cache";
+    location / {
+      try_files $uri $uri/ =404;
+    }
+  }
 }

@@ -1,4 +1,7 @@
 ---
+- name: Deploy InfraBox home page
+  ansible.builtin.import_tasks: landing.yml
+  tags: [nginx_landing]
 - name: Create nginx component directory
   ansible.builtin.file:
     path: '{{ infrabox_config_root }}/nginx'

@@ -1,0 +1,10 @@
+---
+- name: Verify InfraBox home page and browser cache policy
+  ansible.builtin.uri:
+    url: 'https://{{ infrabox_domain }}/'
+    return_content: true
+  register: nginx_landing_response
+  failed_when: >-
+    nginx_landing_response.status != 200 or
+    'id="services-heading"' not in (nginx_landing_response.content | default('')) or
+    'no-cache' not in (nginx_landing_response.cache_control | default(''))

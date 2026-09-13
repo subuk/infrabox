@@ -1,0 +1,17 @@
+---
+- name: Create InfraBox static directory
+  ansible.builtin.file:
+    path: '{{ nginx_landing_root }}'
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+    setype: httpd_sys_content_t
+- name: Render InfraBox home page
+  ansible.builtin.template:
+    src: index.html.j2
+    dest: '{{ nginx_landing_root }}/index.html'
+    owner: root
+    group: root
+    mode: '0644'
+    setype: httpd_sys_content_t

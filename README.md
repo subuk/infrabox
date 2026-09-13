@@ -58,7 +58,7 @@ Review these settings in `inventories/local/group_vars/all.yml`:
 
 | Setting | What to configure |
 | --- | --- |
-| `infrabox_domain` | Your service base domain, such as `infrabox.example.com`. Configure wildcard DNS for `*.infrabox.example.com`, or individual `git`, `netbox`, `grafana`, and `vault` records, pointing to the appliance. |
+| `infrabox_domain` | Your service base domain, such as `infrabox.example.com`. Point this name to the appliance for the home page, plus wildcard DNS for `*.infrabox.example.com`, or individual `git`, `netbox`, `grafana`, `vault`, and `claw` records for services. The subdomain wildcard does not replace the main-domain record. |
 | `infrabox_internal_domain` | The private container DNS suffix. The supplied `infrabox.internal` can normally remain; it does not need public DNS records. |
 | `openbao_agent_openbao_address` | Match the internal suffix: `https://openbao.<infrabox_internal_domain>:8200`. This is the Agent's internal endpoint, not the public `vault` URL. |
 | `openbao_tls_enabled` | Keep `true` for the final configuration. Use the explicit temporary overrides in the bootstrap procedure for a new appliance. |
@@ -162,12 +162,35 @@ playbooks remain available for targeted changes. No initialization is automatic.
 
 ## Services
 
+Open `https://<infrabox_domain>/` for the InfraBox home page, for example
+`https://infrabox.example.com/`. It provides five permanent cards for Gitea,
+NetBox, Grafana, OpenBao, and OpenClaw, assuming all services are enabled.
+Links follow the same effective hostnames as `nginx_upstreams`, including
+`openclaw_hostname`; the page does not check service health. Its responsive
+layout uses embedded CSS and SVG, with no JavaScript or external assets.
+
 | Service | Address | Local administrator |
 | --- | --- | --- |
 | Gitea | https://git.infrabox.example.com | `admin` |
 | NetBox | https://netbox.infrabox.example.com | `admin` |
 | Grafana | https://grafana.infrabox.example.com | `admin` |
 | OpenBao | https://vault.infrabox.example.com | retained controller root token |
+
+The nginx role installs the static page at
+`/usr/share/nginx/html/infrabox/index.html` and adds the main-domain vhost.
+On an existing appliance, deploy the page and vhost through the nginx role:
+
+```sh
+.venv/bin/ansible-playbook -i inventories/local/hosts.yml edge.yml --tags configure,service
+.venv/bin/ansible-playbook -i inventories/local/hosts.yml edge.yml --tags nginx_landing
+```
+
+The first command applies nginx configuration through its normal handler. For
+subsequent page-only updates, use just the second command: it deploys static
+files and checks the home page without reloading or restarting nginx. HTML
+responses use `Cache-Control: no-cache`, allowing browser storage with
+revalidation on the next visit or refresh. The page does not require a frontend
+build step. The `nginx_landing` tag assumes the vhost is already installed.
 
 Passwords are the corresponding `*_admin_password` entries in the protected
 controller inputs. Trust the appliance's public RootCA in clients before using

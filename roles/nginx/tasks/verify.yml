@@ -2,6 +2,9 @@
 - name: Verify nginx configuration
   ansible.builtin.command: nginx -t
   changed_when: false
+- name: Verify InfraBox home page
+  ansible.builtin.import_tasks: verify-landing.yml
+  tags: [nginx_landing]
 - name: Verify trusted OpenBao public HTTPS route
   ansible.builtin.uri:
     url: 'https://vault.{{ infrabox_domain }}/v1/sys/health'

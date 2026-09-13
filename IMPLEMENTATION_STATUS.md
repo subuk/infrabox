@@ -1,5 +1,56 @@
 # Implementation status
 
+## KRG-16 InfraBox home page — 2026-09-13
+
+Implemented and deployed to the authorized existing appliance `infrabox1`,
+`almalinux@192.168.32.206`, using `inventories/development/hosts.yml`.
+The home page is `https://infrabox1.krglv.com/`.
+
+The nginx role adds a static vhost and manages a self-contained HTML file under
+`/usr/share/nginx/html/infrabox/`. Five permanent cards link to Gitea, NetBox,
+Grafana, OpenBao, and OpenClaw using the effective nginx upstream hostnames.
+Embedded CSS/SVG and system fonts require no JavaScript or external assets.
+The `nginx_landing` tag updates static content and verifies the page without
+notifying nginx reload/restart handlers. Browser responses use revalidation
+through `Cache-Control: no-cache`.
+
+Completed checks:
+
+- User approved the actual desktop/mobile design before deployment.
+- Local browser checks with JavaScript disabled at 1440, 1024, 768, 390, and
+  320 px: five cards, no horizontal overflow, visible keyboard focus, and no
+  external asset requests. Desktop/mobile screenshots were preserved.
+- Python unittest: 56 passed, including four home-page rendering checks for
+  the configured domain, upstream overrides, the existing OpenClaw hostname,
+  and self-contained assets. `site.yml` syntax-check passed with the explicitly
+  selected development inventory.
+- Initial nginx/page deployment (`edge.yml --tags configure,service`):
+  `ok=12 changed=4 failed=0`. The static directory, HTML, and vhost were added;
+  the existing nginx handler applied the changed configuration.
+- Repeat of the same deployment: `ok=10 changed=0 failed=0`, with no nginx
+  reload handler invocation.
+- Static-only apply and ordinary-URL verification after DNS propagation
+  (`edge.yml --tags nginx_landing`): `ok=4 changed=0 failed=0`, with no service
+  reload or restart tasks.
+- Deployed page smoke check: HTTP 200, all five expected links, 16,503-byte
+  HTML, `Cache-Control: no-cache`, ETag revalidation returning 304, and an
+  unknown path returning 404. The initial smoke used an explicit DNS address
+  override; a later request to the ordinary URL from the controller returned
+  200 after DNS propagation.
+
+The operator added the main-domain A record during deployment. The first
+`nginx_landing` verification encountered a cached DNS failure after the two
+static tasks completed with no changes. It passed on retry after propagation;
+the separate failed-run log is retained.
+No TLS configuration, service enablement logic, or application configuration
+was changed. No full appliance regression, reboot, expiry, or recovery tests
+were run for this feature.
+
+Page-specific logs, the public CA, and HTTP results are preserved under
+`artifacts/infrabox1/`; visual evidence is under `artifacts/home-page/` in the
+implementation worktree. A durable copy of the KRG-16 evidence is also saved in
+the main checkout under `artifacts/infrabox1/krg16/`.
+
 ## KRG-6 Platform discovery — 2026-09-13, single-host acceptance passed
 
 Implemented Platform source/runtime/workflows in the separate local
