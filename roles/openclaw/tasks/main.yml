@@ -25,6 +25,10 @@
   ansible.builtin.import_tasks: netbox.yml
   when: openclaw_netbox_enabled | bool
   tags: [configure]
+- name: Provision fixed discovery access
+  ansible.builtin.import_tasks: discovery.yml
+  when: openclaw_discovery_enabled | bool
+  tags: [configure, discovery]
 - name: Start OpenClaw
   ansible.builtin.import_tasks: service.yml
   tags: [service]
@@ -42,3 +46,9 @@
     openclaw_netbox_action: finalize
   when: openclaw_netbox_enabled | bool
   tags: [service]
+- name: Finalize verified discovery credential replacement
+  ansible.builtin.include_tasks: discovery-manage.yml
+  vars:
+    openclaw_discovery_action: finalize
+  when: openclaw_discovery_enabled | bool
+  tags: [service, discovery]

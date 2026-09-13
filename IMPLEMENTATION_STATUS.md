@@ -1,5 +1,82 @@
 # Implementation status
 
+## KRG-9 OpenClaw discovery and NetBox enrichment — 2026-09-13
+
+Implemented and deployed to the authorized existing appliance `infrabox1`,
+`almalinux@192.168.32.206`, using `inventories/development/hosts.yml` and existing
+domain, TPM and protected controller inputs. Only the explicitly authorized
+`testbox.net.krglv.com` (Device ID 12, `192.168.32.207`) was discovered.
+
+The native OpenClaw plugin exposes start/status/result for the fixed Platform
+`discover.yml` workflow. It checks explicit managed NetBox identities, passes
+comma-separated names through the existing Ansible pattern input, persists
+request/run metadata across Gateway restarts, and does not redispatch an
+uncertain request. Results validate bounded native ZIP artifacts against the
+run, attempt, deployed SHA and selected identities, and page successful hosts'
+Ansible facts. The Platform repository/pipeline was not changed for KRG-9;
+execution revision remains `e0af645f3decb0c2a1381145a25808f4896f4c10`.
+
+A separate Gitea account/team has Code Read and Actions Write only on the
+execution repository. Its scoped token is owned by OpenBao and delivered through
+a private runtime file; healthy reruns preserve it. Replacement validation
+precedes publication, and superseded tokens are retired after Gateway-side
+verification. Neither runner/provisioner credentials nor arbitrary workflow
+operations are exposed to the model.
+
+The managed onboarding skill now joins discovery facts to concrete NetBox
+proposals, preserves provenance, supports standard fields and Device-to-VM
+correction, and leaves additional facts visible without new custom fields.
+Operator-approved inventory permissions now include deletion, platforms, MAC
+addresses, Config Context and local Device/VM context. Every NetBox write still
+requires confirmation of the concrete proposal, including affected relationships
+for deletion/migration. Earlier no-delete statements below describe historical
+acceptance and are superseded by this deployment.
+
+Completed checks:
+
+- Local validation: 68 Python tests and 16 Node tests passed. Coverage includes
+  expanded NetBox grants, credential preservation/replacement failures,
+  persistent request deduplication, lost dispatch responses, name ambiguity,
+  revision/attempt/identity checks, unsafe/oversized ZIP rejection, partial
+  results and bounded native fact paging. `site.yml` and
+  `acceptance-openclaw-discovery.yml` syntax checks used the explicit development
+  inventory; `git diff --check` passed.
+- Final component deployment via `agent.yml --skip-tags subnet_scan` passed:
+  `ok=104 changed=5 failed=0`. Actual Gateway registration of all three optional
+  tools, Gitea identity/permissions, HTTPS workflow access, NetBox MCP reads,
+  effective expanded NetBox permissions and existing OpenClaw checks passed.
+- Healthy repeat of the same component deployment passed:
+  `ok=102 changed=0 failed=0`. The image, configuration and all integration
+  credentials were preserved; no Gateway restart or token retirement occurred.
+- Live tool acceptance made no model calls or NetBox writes. Request
+  `krg9-testbox-20260913-01` dispatched
+  [run 200](https://git.infrabox1.krglv.com/infrabox-platform/automation/actions/runs/200).
+  Attempt 1, artifact 8: selected 1, succeeded 1, failed/unreachable/unfinished 0;
+  107 native fact fields were available through Gateway. Artifact observation
+  time was `2026-09-13T16:11:43.430053+00:00`.
+- Gateway restart acceptance passed (`ok=11 changed=3 failed=0`): the same
+  request recovered run 200, artifact 8 and the same SHA without a new workflow.
+  The acceptance helper additionally supports status/result-only replay; its
+  post-restart path cannot create a replacement run if persistence is missing.
+- The final status/result-only replay passed (`ok=6 changed=1 failed=0`, with
+  only the local report created), retaining run 200/artifact 8 and recording
+  `persisted_request_read_without_dispatch`. The original dispatch and restart
+  reports are preserved separately.
+
+The initial deployment stopped at the existing MCP stdio verifier with a generic
+session failure (`ok=105 changed=11 failed=1`). An independent read-only probe
+then passed; the precise initial cause was not established. The verifier now
+reports sanitized phase/code flags and the role retries this read-only check
+within a bounded limit. Final deployment and discovery acceptance passed.
+
+Conversational proposals, confirmed NetBox writes/deletes and Device-to-VM
+migration were not exercised live. Multi-host/partial/error cases and credential
+replacement failure scenarios have local fixture coverage, not live acceptance.
+No managed-host changes, appliance reboot, expiry/recovery tests or full-stack
+acceptance were performed for KRG-9. Sanitized logs and bounded reports are under
+`artifacts/infrabox1/krg9/`; operator instructions are in
+[docs/openclaw-discovery.md](docs/openclaw-discovery.md).
+
 ## KRG-16 InfraBox home page — 2026-09-13
 
 Implemented and deployed to the authorized existing appliance `infrabox1`,

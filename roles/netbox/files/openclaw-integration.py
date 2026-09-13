@@ -10,9 +10,10 @@ MODELS = (
     'dcim.devicerole', 'dcim.device', 'dcim.interface', 'ipam.prefix',
     'ipam.ipaddress', 'ipam.vlan', 'virtualization.clustertype',
     'virtualization.cluster', 'virtualization.virtualmachine',
-    'virtualization.vminterface', 'extras.tag',
+    'virtualization.vminterface', 'extras.tag', 'dcim.platform',
+    'dcim.macaddress', 'extras.configcontext',
 )
-ACTIONS = ('view', 'add', 'change')
+ACTIONS = ('view', 'add', 'change', 'delete')
 
 
 def require(condition, message):
@@ -80,7 +81,7 @@ def reconcile(c):
         require(not permission.users.exclude(pk=user.pk).exists() and not permission.groups.exists(),
                 'Refusing to alter an integration permission shared with other identities')
         desired = {'actions': list(ACTIONS), 'enabled': True, 'constraints': None,
-                   'description': 'InfraBox OpenClaw inventory access; no deletion or administration.'}
+                   'description': 'InfraBox OpenClaw inventory and Config Context CRUD; no account administration.'}
         if any(getattr(permission, key) != value for key, value in desired.items()):
             for key, value in desired.items():
                 setattr(permission, key, value)

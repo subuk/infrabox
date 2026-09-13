@@ -1,5 +1,8 @@
 # Platform discovery deployment
 
+[OpenClaw discovery integration](openclaw-discovery.md) can launch this fixed
+workflow and use confirmed proposals to enrich NetBox through its existing MCP.
+
 KRG-6 adds an optional trusted Platform runner and managed Gitea automation
 repository. Live deployment and the Gitea v4 artifact gate have passed on the
 development appliance; managed-host acceptance and remaining checks are tracked

@@ -1,0 +1,81 @@
+---
+- name: Accept fixed OpenClaw discovery on one explicitly authorized managed host
+  hosts: infrabox
+  become: true
+  tasks:
+    - name: Require explicit target and persistent acceptance request ID
+      ansible.builtin.assert:
+        that:
+          - openclaw_discovery_acceptance_hosts is defined
+          - openclaw_discovery_acceptance_hosts | length == 1
+          - openclaw_discovery_acceptance_request_id is defined
+          - openclaw_discovery_acceptance_request_id is match('^[A-Za-z0-9][A-Za-z0-9_-]{7,79}$')
+    - name: Exercise registered discovery tools without paid model calls or NetBox writes
+      ansible.builtin.command: &discovery_acceptance_command
+        argv:
+          - podman
+          - exec
+          - openclaw
+          - node
+          - --input-type=module
+          - -e
+          - '{{ lookup("ansible.builtin.file", "scripts/acceptance-openclaw-discovery.mjs") }}'
+          - '{{ {"request_id": openclaw_discovery_acceptance_request_id, "hosts": openclaw_discovery_acceptance_hosts, "resume_only": openclaw_discovery_acceptance_resume_only | default(false) | bool} | to_json }}'
+      register: openclaw_discovery_acceptance
+      changed_when: not (openclaw_discovery_acceptance_resume_only | default(false) | bool)
+      failed_when: false
+    - name: Create local acceptance artifact directory
+      ansible.builtin.file:
+        path: '{{ playbook_dir }}/artifacts/{{ inventory_hostname }}/krg9'
+        state: directory
+        mode: '0700'
+      delegate_to: localhost
+      become: false
+    - name: Save bounded acceptance report including failures
+      ansible.builtin.copy:
+        content: '{{ openclaw_discovery_acceptance.stdout }}'
+        dest: '{{ playbook_dir }}/artifacts/{{ inventory_hostname }}/krg9/discovery-{{ openclaw_discovery_acceptance_request_id }}{{ "-resume" if openclaw_discovery_acceptance_resume_only | default(false) | bool else "" }}.json'
+        mode: '0600'
+      delegate_to: localhost
+      become: false
+    - name: Require successful discovery acceptance
+      ansible.builtin.assert:
+        that:
+          - openclaw_discovery_acceptance.rc == 0
+          - (openclaw_discovery_acceptance.stdout | from_json).outcome == 'passed'
+        fail_msg: Discovery acceptance failed; inspect the saved report and original Gitea run before retrying.
+    - name: Verify request persistence across an explicitly requested Gateway restart
+      when: openclaw_discovery_acceptance_restart_gateway | default(false) | bool
+      block:
+        - name: Restart only the Gateway for persistence acceptance
+          ansible.builtin.systemd_service:
+            name: openclaw.service
+            state: restarted
+        - name: Wait for the restarted Gateway
+          ansible.builtin.uri:
+            url: 'http://127.0.0.1:{{ openclaw_port | default(18789) }}/healthz'
+          register: openclaw_discovery_restarted
+          until: openclaw_discovery_restarted.status == 200
+          retries: 60
+          delay: 3
+        - name: Resume the same request through actual Gateway tools
+          ansible.builtin.command: *discovery_acceptance_command
+          vars:
+            openclaw_discovery_acceptance_resume_only: true
+          register: openclaw_discovery_resumed
+          changed_when: false
+          failed_when: false
+        - name: Save restart acceptance result
+          ansible.builtin.copy:
+            content: '{{ openclaw_discovery_resumed.stdout }}'
+            dest: '{{ playbook_dir }}/artifacts/{{ inventory_hostname }}/krg9/discovery-{{ openclaw_discovery_acceptance_request_id }}-restart.json'
+            mode: '0600'
+          delegate_to: localhost
+          become: false
+        - name: Require the same run and artifact after Gateway restart
+          ansible.builtin.assert:
+            that:
+              - openclaw_discovery_resumed.rc == 0
+              - (openclaw_discovery_resumed.stdout | from_json).run_id == (openclaw_discovery_acceptance.stdout | from_json).run_id
+              - (openclaw_discovery_resumed.stdout | from_json).artifact_id == (openclaw_discovery_acceptance.stdout | from_json).artifact_id
+              - (openclaw_discovery_resumed.stdout | from_json).revision == (openclaw_discovery_acceptance.stdout | from_json).revision

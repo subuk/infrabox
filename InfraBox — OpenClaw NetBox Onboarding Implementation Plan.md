@@ -1,5 +1,10 @@
 # InfraBox — OpenClaw ↔ NetBox Onboarding Implementation Plan
 
+The later [KRG-9 discovery integration](docs/openclaw-discovery.md) supersedes
+this plan's prohibition of fixed Gitea discovery and Ansible-observed enrichment.
+The operator also permits confirmed deletion, platforms, MAC addresses and Config
+Context edits as documented below. Unrestricted execution remains outside scope.
+
 The subsequent [subnet-scanning extension](InfraBox%20%E2%80%94%20OpenClaw%20Subnet%20Scanning%20Implementation%20Plan.md)
 adds approved, bounded Nmap observations. Its contract supersedes this plan's
 network-scanning exclusions and absolute prohibition of discovery claims only
@@ -248,9 +253,8 @@ Grant:
 view
 add
 change
+delete
 ```
-
-but explicitly **not delete**.
 
 Initial allowed object types:
 
@@ -262,6 +266,8 @@ dcim.devicetype
 dcim.devicerole
 dcim.device
 dcim.interface
+dcim.platform
+dcim.macaddress
 
 ipam.prefix
 ipam.ipaddress
@@ -273,6 +279,7 @@ virtualization.virtualmachine
 virtualization.vminterface
 
 extras.tag
+extras.configcontext
 ```
 
 Add another model only if required by NetBox relationships during implementation.
@@ -289,28 +296,32 @@ event rules
 scripts
 jobs
 data sources
-administrative configuration
+unrelated administrative configuration
 ```
 
 ---
 
-# 11. Delete protection
+# 11. Confirmed deletion
 
-OpenClaw must never be able to delete NetBox objects.
+Operator decision, 2026-09-13: OpenClaw may delete permitted inventory objects
+and Config Contexts. This supersedes the original no-delete contract.
 
-Enforce this at two levels:
+Every logical write batch, including deletion, requires a concrete proposal and
+explicit confirmation through the managed skill. Identify exact objects and
+inspect affected relationships and cascading deletions before confirmation.
+Do not infer deletion from missing or incomplete observations.
 
-```text
-OpenClaw onboarding policy:
-    never request delete
+For migrations such as Device to VM, verify the replacement and transferred
+relationships before deleting the superseded object. Unexpected dependencies or
+additional cascading deletions require an updated proposal and new confirmation.
 
-NetBox permissions:
-    no delete permission
-```
+Platforms, MAC addresses, Config Context objects, and device/VM local context
+are now in scope. Context is trusted Ansible execution configuration; explain
+changes to future execution, preserve unrelated keys, and keep secret values in
+OpenBao. Account administration and unrelated administrative models remain excluded.
 
-Do not rely solely on prompting.
-
-A malicious or mistaken `netbox_write` delete operation must fail in NetBox.
+NetBox permissions enforce the allowed models. Confirmation is managed-skill
+policy; no separate programmatic write-approval gate is introduced here.
 
 NetBox 4.7 also grants implicit self-service permissions, including API token
 creation, outside explicit ObjectPermission records. Exclude those defaults for
@@ -536,7 +547,7 @@ Prefer incomplete but correct inventory over detailed guessed inventory.
 
 Never claim that user-provided information has been verified.
 
-Never delete NetBox objects.
+Delete permitted NetBox objects only after confirming a concrete proposal and its relationship/cascade effects.
 
 Always prepare a proposed change before writing.
 
@@ -1060,7 +1071,7 @@ NetBox service identity exists
 
 expected permissions exist
 
-delete permission is absent
+delete permission exists on the permitted models
 
 NetBox token is valid
 
@@ -1082,9 +1093,9 @@ expected five tools are exposed
 
 NetBox read succeeds
 
-Effective NetBox permissions permit only view/add/change on the listed models
+Effective NetBox permissions permit view/add/change/delete on the listed models
 
-Effective NetBox permissions exclude deletion and administration
+Effective NetBox permissions exclude account and unrelated administrative models
 
 OpenClaw shell/exec remains unavailable
 ```
@@ -1096,8 +1107,8 @@ OpenClaw shell/exec remains unavailable
 Automated OpenClaw conversational acceptance, paid model calls, temporary live
 NetBox fixtures, live write/delete probes, and disruptive acceptance tests are
 not required in this implementation. The operator will exercise conversational
-onboarding, confirmation, repeat, correction, management-tag changes, and refusal
-of deletion manually later. Do not implement those acceptance playbooks or claim
+onboarding, confirmation, repeat, correction, management-tag changes, and confirmed
+deletion manually later. Do not implement those acceptance playbooks or claim
 those scenarios passed.
 
 Retain local syntax/unit checks, non-destructive credential and permission
@@ -1150,7 +1161,6 @@ network scanning
 hardware detection
 drift detection
 automatic reconciliation
-NetBox deletion
 NetBox branching
 custom InfraBox UI
 custom MCP server
@@ -1193,7 +1203,7 @@ generic placeholders
 proposal generation
 mandatory confirmation
 conflict behavior
-no-delete behavior
+confirmed deletion and migration behavior
 ```
 
 ## Phase 4 — testing
@@ -1220,11 +1230,11 @@ The intended workflow and security contract are:
 ```text
 OpenClaw can read NetBox through MCP.
 
-OpenClaw can create and update only permitted inventory objects.
+OpenClaw can create, update, and delete only permitted inventory and Config Context objects.
 
-OpenClaw cannot delete objects.
+OpenClaw requires a reviewed, confirmed proposal before deleting objects.
 
-OpenClaw cannot administer NetBox.
+OpenClaw cannot administer accounts or unrelated NetBox configuration.
 
 The NetBox API token is stored in OpenBao.
 

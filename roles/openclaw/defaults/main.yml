@@ -31,3 +31,11 @@ openclaw_netbox_url: 'https://netbox.{{ infrabox_domain }}'
 openclaw_netbox_mcp_version: '0.2.0'
 openclaw_netbox_token_file: '{{ openclaw_config_dir }}/secrets/netbox-token'
 openclaw_runtime_image: 'localhost/infrabox-openclaw:{{ openclaw_version }}-{{ "netbox-" ~ openclaw_netbox_mcp_version if openclaw_netbox_enabled | bool else "vault-owner" }}-{{ openclaw_image_digest.split(":")[-1][:12] }}'
+# Discovery is available when the separately provisioned Platform is enabled.
+openclaw_discovery_enabled: '{{ platform_enabled | default(false) | bool }}'
+openclaw_discovery_username: infrabox-openclaw-discovery
+openclaw_discovery_gitea_url: '{{ platform_gitea_url | default("https://git." ~ infrabox_domain) }}'
+openclaw_discovery_organization: '{{ platform_organization | default("infrabox-platform") }}'
+openclaw_discovery_repository: '{{ platform_repository | default("automation") }}'
+openclaw_discovery_branch: '{{ platform_branch | default("master") }}'
+openclaw_discovery_managed_tag: '{{ platform_managed_tag | default("infrabox-managed") }}'

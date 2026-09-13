@@ -45,7 +45,8 @@ for name in ['openclaw.json', 'openclaw.env', 'secrets/vault-token']:
     require(Path(config_dir, name).stat().st_mode & 0o077 == 0, 'world/group-readable configuration or secret')
 require({'exec', 'process', 'browser', 'nodes', 'terminal'} <= set(configuration['tools']['deny']), 'execution tool denials missing')
 web_search_enabled = configuration['tools'].get('web', {}).get('search', {}).get('enabled', False)
-expected_additions = (['read'] if netbox_enabled else []) + ['infrabox_health'] + (['infrabox_scan_subnet'] if scanner_enabled else []) + (['web_search'] if web_search_enabled else [])
+discovery_enabled = configuration['plugins']['entries'].get('infrabox-discovery', {}).get('enabled', False)
+expected_additions = (['read'] if netbox_enabled else []) + ['infrabox_health'] + (['infrabox_scan_subnet'] if scanner_enabled else []) + (['infrabox_discovery_start', 'infrabox_discovery_status', 'infrabox_discovery_result'] if discovery_enabled else []) + (['web_search'] if web_search_enabled else [])
 require(configuration['tools'].get('alsoAllow', []) == expected_additions, 'unexpected tool profile additions')
 if web_search_enabled:
     require('provider' not in configuration['tools']['web']['search'], 'managed provider overrides native OpenAI search')
@@ -71,6 +72,11 @@ require(configuration['plugins']['entries']['vault']['enabled'] is True, 'bundle
 require(not configuration['gateway']['tls']['enabled'], 'unexpected Gateway TLS server')
 env = dict(item.split('=', 1) for item in container['Config']['Env'] if '=' in item)
 require('VAULT_TOKEN' not in env and 'BAO_TOKEN' not in env, 'OpenBao token present in environment')
+require('GITEA_TOKEN' not in env, 'Gitea token present in Gateway environment')
+if discovery_enabled:
+    discovery_token = Path(config_dir, 'secrets/discovery-token').read_text().strip()
+    require(discovery_token and discovery_token not in json.dumps(configuration) and discovery_token not in json.dumps(env), 'Discovery token absent or exposed in configuration/environment')
+    require(Path(config_dir, 'secrets/discovery-token').stat().st_mode & 0o777 == 0o600, 'Discovery token mode incorrect')
 require('NETBOX_TOKEN' not in env, 'NetBox token present in Gateway environment')
 require(env.get('OPENCLAW_VAULT_AUTH_METHOD') == 'token_file', 'incorrect Vault auth method')
 require('NODE_TLS_REJECT_UNAUTHORIZED' not in env, 'TLS verification bypass')

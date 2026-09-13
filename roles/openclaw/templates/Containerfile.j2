@@ -23,3 +23,7 @@ COPY health-plugin.json /opt/infrabox/plugins/health/openclaw.plugin.json
 COPY openclaw-probe.mjs /opt/infrabox/monitoring/openclaw-probe.mjs
 
 COPY diagnostics-install.mjs /opt/infrabox/diagnostics/install.mjs
+
+{% if openclaw_discovery_enabled | bool %}
+COPY discovery/ /opt/infrabox/plugins/discovery/
+{% endif %}

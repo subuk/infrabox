@@ -59,6 +59,19 @@ class BoundaryTests(unittest.TestCase):
         self.assertFalse(self.backend.has_perm(user, 'dcim.delete_device'))
         self.assertFalse(self.backend.has_perm(user, 'users.add_user'))
 
+    def test_explicit_inventory_delete_grant_is_honored(self):
+        user = self.user('infrabox-openclaw')
+        with patch.object(StockBackend, 'get_object_permissions', return_value={
+            **DEFAULTS, 'dcim.delete_device': [None],
+            'extras.change_configcontext': [None],
+        }):
+            self.assertTrue(self.backend.has_perm(user, 'dcim.delete_device'))
+            self.assertTrue(self.backend.has_perm(user, 'extras.change_configcontext'))
+            self.assertFalse(self.backend.has_perm(user, 'users.delete_user'))
+            for permission in DEFAULTS:
+                with self.assertRaises(PermissionDenied):
+                    self.backend.has_perm(user, permission)
+
     def test_platform_cannot_reach_fallback_implicit_grants(self):
         user = self.user('infrabox-platform')
         for permission in DEFAULTS:

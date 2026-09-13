@@ -1,0 +1,12 @@
+---
+- name: Install host-only discovery identity helper
+  ansible.builtin.copy:
+    src: discovery-credential.py
+    dest: /usr/local/libexec/infrabox/openclaw-discovery-credential
+    owner: root
+    group: root
+    mode: '0700'
+- name: Preserve or provision dedicated Gitea discovery identity
+  ansible.builtin.include_tasks: discovery-manage.yml
+  vars:
+    openclaw_discovery_action: provision

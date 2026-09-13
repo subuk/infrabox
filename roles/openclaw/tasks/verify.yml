@@ -48,7 +48,11 @@
 - name: Verify pinned MCP tools and an actual NetBox read through stdio
   ansible.builtin.command:
     argv: [podman, exec, openclaw, node, /opt/infrabox/verify-netbox-mcp.mjs, '{{ openclaw_netbox_mcp_version }}']
+  register: openclaw_mcp_session
   changed_when: false
+  until: openclaw_mcp_session.rc == 0
+  retries: 2
+  delay: 5
   when: openclaw_netbox_enabled | bool
 - name: Probe the configured server through OpenClaw's own MCP client
   ansible.builtin.command:
@@ -72,3 +76,31 @@
   ansible.builtin.assert:
     that:
       - "'infrabox_health' in ((openclaw_registered_plugins.stdout | from_json).plugins | selectattr('id', 'equalto', 'infrabox-health') | first).toolNames"
+
+- name: Verify discovery identity and runtime credential without dispatch
+  ansible.builtin.include_tasks: discovery-manage.yml
+  vars:
+    openclaw_discovery_action: verify
+  when: openclaw_discovery_enabled | bool
+- name: Verify actual Gateway-side Gitea HTTPS and fixed workflow access
+  ansible.builtin.command:
+    argv: [podman, exec, openclaw, node, /opt/infrabox/plugins/discovery/verify.mjs]
+  changed_when: false
+  when: openclaw_discovery_enabled | bool
+- name: Require registered discovery tools
+  ansible.builtin.assert:
+    that:
+      - "((openclaw_registered_plugins.stdout | from_json).plugins | selectattr('id', 'equalto', 'infrabox-discovery') | first).toolNames | sort == ['infrabox_discovery_result', 'infrabox_discovery_start', 'infrabox_discovery_status']"
+  when: openclaw_discovery_enabled | bool
+- name: Inspect actual discovery plugin runtime registrations without inference
+  ansible.builtin.command:
+    argv: [podman, exec, openclaw, node, openclaw.mjs, plugins, inspect, infrabox-discovery, --runtime, --json]
+  register: openclaw_discovery_runtime
+  changed_when: false
+  when: openclaw_discovery_enabled | bool
+- name: Require discovery runtime to expose only the three optional tools
+  ansible.builtin.assert:
+    that:
+      - "((openclaw_discovery_runtime.stdout | from_json).tools | map(attribute='names') | flatten | sort) == ['infrabox_discovery_result', 'infrabox_discovery_start', 'infrabox_discovery_status']"
+      - "(openclaw_discovery_runtime.stdout | from_json).tools | rejectattr('optional', 'equalto', true) | list | length == 0"
+  when: openclaw_discovery_enabled | bool

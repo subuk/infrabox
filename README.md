@@ -1,6 +1,8 @@
 # InfraBox Ansible
 
 Optional Platform facts discovery is documented in [docs/platform.md](docs/platform.md).
+OpenClaw orchestration and confirmed NetBox enrichment are documented in
+[docs/openclaw-discovery.md](docs/openclaw-discovery.md).
 It uses a dedicated trusted runner and native NetBox Config Context/Ansible patterns;
 implementation and live acceptance status are tracked in IMPLEMENTATION_STATUS.md.
 
@@ -393,10 +395,10 @@ runs. No model provider is required for deployment or structural verification.
 | `netbox_openclaw_username` | Dedicated service identity, default `infrabox-openclaw`. |
 | `netbox_openclaw_token_description` | Credential ownership label, default `InfraBox OpenClaw MCP`. Keep it stable after provisioning. |
 
-The service identity has no password login, staff/superuser status, deletion
-permission, or administrative object permissions. Its exact permissions are
-view/add/change on the onboarding plan's inventory models and tags, including
-existing untagged records. The NetBox role reconciles this dedicated identity,
+The service identity has no password login, staff/superuser status, or account
+administration permissions. Its exact permissions are view/add/change/delete on
+the onboarding plan's inventory models and tags, including platforms, MAC
+addresses, Config Contexts, and existing untagged records. The NetBox role reconciles this dedicated identity,
 permissions, generic hardware types, starter roles, and tags without overwriting
 existing inventory. The OpenClaw role invokes those NetBox tasks, then owns
 credential storage, materialization, MCP configuration, and the managed skill.
@@ -433,7 +435,12 @@ process, browser, node access, file writes, and delegation remain denied. The
 skill requires reading NetBox, presenting a concrete proposal, and receiving
 explicit confirmation before each logical write batch, including direct commands
 such as "add server02". This confirmation is a skill policy; NetBox permissions
-independently enforce the deletion and administrative restrictions.
+independently restrict access to the permitted models. Deletion proposals must
+identify exact objects, affected relationships, and cascading deletions before
+confirmation. Migrations verify the replacement and transferred relationships
+before deleting the superseded object. Config Context and device/VM local context
+may be updated after confirmation; proposals explain effects on future Ansible
+runs and preserve unrelated keys. Credentials belong in OpenBao, not context.
 
 To use the workflow:
 
@@ -449,8 +456,9 @@ You can ask OpenClaw to add or remove that tag association after confirmation.
 Unrelated tags are preserved. A generic hardware type or `infrabox-unknown`
 interface is an explicit placeholder, not a detected fact.
 
-InfraBox currently records what you provide; it has not verified the managed
-servers. Discovery and enrichment remain future work. Conversational acceptance
+Conversational onboarding records user-provided information. With Platform
+discovery enabled, OpenClaw can also run the fixed Ansible workflow and propose
+confirmed enrichment from actual per-host facts; see [KRG-9](docs/openclaw-discovery.md). Conversational acceptance
 is performed manually by the operator. Automated verification opens an MCP
 session, checks the five tools, reads NetBox with verified TLS, and checks
 credentials, effective object permissions, and isolation. It makes no model calls,
