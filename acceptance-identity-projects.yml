@@ -1,0 +1,4 @@
+---
+- ansible.builtin.import_playbook: acceptance-identity-applications.yml
+  vars:
+    identity_acceptance_projects: true

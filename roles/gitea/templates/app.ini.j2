@@ -29,6 +29,17 @@ INTERNAL_TOKEN = {{ gitea_internal_token }}
 [service]
 DISABLE_REGISTRATION = true
 REQUIRE_SIGNIN_VIEW = true
+ALLOW_ONLY_EXTERNAL_REGISTRATION = true
+DEFAULT_ALLOW_CREATE_ORGANIZATION = false
+[admin]
+DISABLE_REGULAR_ORG_CREATION = true
+EXTERNAL_USER_DISABLE_FEATURES = manage_credentials
+[mailer]
+ENABLED = false
+[oauth2_client]
+ENABLE_AUTO_REGISTRATION = true
+USERNAME = nickname
+ACCOUNT_LINKING = disabled
 [actions]
 ENABLED = true
 [packages]

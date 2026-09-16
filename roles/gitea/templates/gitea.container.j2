@@ -9,6 +9,7 @@ User={{ gitea_uid }}:{{ gitea_uid }}
 DropCapability=all
 NoNewPrivileges=true
 Network=infrabox.network
+PodmanArgs=--hosts-file=none
 NetworkAlias=gitea.{{ infrabox_internal_domain }}
 PublishPort=127.0.0.1:3000:3000
 PublishPort=2222:2222

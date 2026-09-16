@@ -1,0 +1,7 @@
+---
+- name: Deploy the central LDAP directory
+  hosts: infrabox
+  become: true
+  roles:
+    - role: lldap
+      tags: [lldap]

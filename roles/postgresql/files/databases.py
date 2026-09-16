@@ -23,7 +23,7 @@ def password_matches(password, stored):
     return hmac.compare_digest(key,base64.b64decode(stored_key))
 changed=False
 for name,password in json.load(sys.stdin).items():
-    if name not in ['gitea','netbox','grafana']: raise ValueError('Unknown application database')
+    if name not in ['gitea','netbox','grafana','lldap']: raise ValueError('Unknown application database')
     exists=sql('SELECT count(*) FROM pg_roles WHERE rolname='+quote(name))=='1'
     if not exists:
         sql('CREATE ROLE '+name+' LOGIN PASSWORD '+quote(password));changed=True

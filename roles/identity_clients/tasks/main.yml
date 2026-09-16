@@ -1,0 +1,10 @@
+---
+- name: Load protected native OIDC client registrations
+  ansible.builtin.slurp:
+    src: '{{ infrabox_config_root }}/identity/clients.json'
+  register: identity_clients_file
+  no_log: true
+- name: Make client registrations available to application roles
+  ansible.builtin.set_fact:
+    identity_clients: '{{ identity_clients_file.content | b64decode | from_json }}'
+  no_log: true

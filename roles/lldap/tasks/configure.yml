@@ -1,0 +1,32 @@
+---
+- name: Create private LLDAP directories
+  ansible.builtin.file:
+    path: '{{ item }}'
+    state: directory
+    owner: '{{ lldap_uid }}'
+    group: '{{ lldap_gid }}'
+    mode: '0700'
+  loop:
+    - '{{ infrabox_config_root }}/lldap'
+    - '{{ infrabox_storage_root }}/lldap'
+- name: Render protected LLDAP configuration
+  ansible.builtin.template:
+    src: lldap.toml.j2
+    dest: '{{ infrabox_config_root }}/lldap/lldap.toml'
+    owner: '{{ lldap_uid }}'
+    group: '{{ lldap_gid }}'
+    mode: '0600'
+  no_log: true
+  notify: Restart lldap
+- name: Resolve local LDAPS management name
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '^127\.0\.0\.1\s+lldap\.'
+    line: '127.0.0.1 lldap.{{ infrabox_internal_domain }}'
+- name: Define LLDAP Quadlet
+  ansible.builtin.include_role:
+    name: quadlet
+    tasks_from: configure
+  vars:
+    quadlet_name: lldap
+    quadlet_definition: '{{ lookup("ansible.builtin.template", "lldap.container.j2") }}'

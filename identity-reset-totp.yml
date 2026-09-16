@@ -1,0 +1,33 @@
+---
+# Explicit recovery only: provide the exact personal username. Never in site.yml.
+- name: Reset one human TOTP enrollment through controller management
+  hosts: infrabox
+  become: true
+  pre_tasks:
+    - name: Require an explicit personal username
+      ansible.builtin.assert:
+        that:
+          - identity_reset_username is defined
+          - identity_reset_username | default('') is match('^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$')
+  roles:
+    - role: identity_directory
+    - role: identity_openbao
+  tasks:
+    - name: Install bounded TOTP recovery helper
+      ansible.builtin.copy:
+        src: roles/identity_openbao/files/reset-totp.py
+        dest: '{{ infrabox_config_root }}/identity/reset-totp.py'
+        mode: '0700'
+    - name: Reset only the selected prepared human
+      ansible.builtin.command:
+        argv: [python3, '{{ infrabox_config_root }}/identity/reset-totp.py']
+        stdin: '{{ {"identity": identity_openbao_parameters, "username": identity_reset_username} | to_json }}'
+      register: identity_reset_result
+      changed_when: identity_reset_result.rc == 0
+      failed_when: false
+      no_log: true
+    - name: Report sanitized recovery outcome
+      ansible.builtin.assert:
+        that: identity_reset_result.rc == 0
+        fail_msg: '{{ identity_reset_result.stderr }}'
+        success_msg: '{{ identity_reset_result.stdout }}'

@@ -1,5 +1,5 @@
 ui = true
-api_addr = "{{ 'https://openbao.' ~ infrabox_internal_domain ~ ':8200' if openbao_tls_enabled else 'http://127.0.0.1:8200' }}"
+api_addr = "{{ 'https://openbao.' ~ infrabox_internal_domain ~ ':8200' if (openbao_tls_enabled | bool) else 'http://127.0.0.1:8200' }}"
 cluster_addr = "https://127.0.0.1:8201"
 storage "raft" {
   path = "/var/lib/openbao"
@@ -13,10 +13,10 @@ seal "pkcs11" {
   rsa_oaep_hash = "{{ openbao_pkcs11_rsa_oaep_hash }}"
 }
 listener "tcp" {
-  address = "{{ '0.0.0.0' if openbao_tls_enabled else '127.0.0.1' }}:8200"
+  address = "{{ '0.0.0.0' if (openbao_tls_enabled | bool) else '127.0.0.1' }}:8200"
   cluster_address = "127.0.0.1:8201"
-  tls_disable = {{ 'false' if openbao_tls_enabled else 'true' }}
-{% if openbao_tls_enabled %}
+  tls_disable = {{ 'false' if (openbao_tls_enabled | bool) else 'true' }}
+{% if openbao_tls_enabled | bool %}
   tls_cert_file = "/etc/openbao/pki/server-chain.crt"
   tls_key_file = "/etc/openbao/pki/server.key"
 {% endif %}

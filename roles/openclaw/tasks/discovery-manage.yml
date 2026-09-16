@@ -15,11 +15,12 @@
       url: '{{ openclaw_discovery_gitea_url }}'
       ca: '{{ infrabox_root_ca_path }}'
       username: '{{ openclaw_discovery_username }}'
+      password: '{{ identity_openclaw_password }}'
       organization: '{{ openclaw_discovery_organization }}'
       repository: '{{ openclaw_discovery_repository }}'
       branch: '{{ openclaw_discovery_branch }}'
-      admin_user: '{{ gitea_admin_username | default("admin") }}'
-      admin_password: '{{ gitea_admin_password }}'
+      admin_user: '{{ gitea_identity_admin_username | default("svc-identity-admin") }}'
+      admin_password: '{{ lldap_admin_password }}'
   register: openclaw_discovery_management
   changed_when: openclaw_discovery_management.rc == 0 and (openclaw_discovery_management.stdout | from_json).changed
   failed_when: false

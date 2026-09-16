@@ -1,0 +1,13 @@
+---
+- name: Install LLDAP
+  ansible.builtin.import_tasks: install.yml
+  tags: [install]
+- name: Configure LLDAP
+  ansible.builtin.import_tasks: configure.yml
+  tags: [configure]
+- name: Start LLDAP
+  ansible.builtin.import_tasks: service.yml
+  tags: [service]
+- name: Verify LLDAP
+  ansible.builtin.import_tasks: verify.yml
+  tags: [verify]

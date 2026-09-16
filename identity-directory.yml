@@ -1,0 +1,7 @@
+---
+- name: Bootstrap central directory identities once
+  hosts: infrabox
+  become: true
+  roles:
+    - role: identity_directory
+      tags: [identity_directory]

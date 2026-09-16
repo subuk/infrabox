@@ -108,6 +108,7 @@
     - {src: health/package.json, dest: health-package.json}
     - {src: health/openclaw.plugin.json, dest: health-plugin.json}
     - {src: '{{ playbook_dir }}/roles/integration_checks/files/openclaw-probe.mjs', dest: openclaw-probe.mjs}
+    - {src: '{{ playbook_dir }}/roles/integration_checks/files/mcp-probe-runtime.mjs', dest: mcp-probe-runtime.mjs}
   register: openclaw_monitoring_inputs
 - name: Copy integrity-locked diagnostics dependency
   ansible.builtin.copy:

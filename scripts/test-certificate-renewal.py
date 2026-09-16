@@ -17,10 +17,10 @@ def fingerprint(pem):
     return hashlib.sha256(ssl.PEM_cert_to_DER_cert(pem)).hexdigest()
 def served(spec):
     name = spec['name']
-    address, port = '127.0.0.1', {'openbao': 8200, 'nginx': 443, 'redis': 6379, 'postgresql': 5432}[name]
+    address, port = '127.0.0.1', {'openbao': 8200, 'nginx': 443, 'redis': 6379, 'postgresql': 5432, 'lldap': 16360}[name]
     if name in ['redis', 'postgresql']:
-        info = json.loads(subprocess.check_output(['podman', 'inspect', name], stderr=subprocess.PIPE))[0]
-        address = info['NetworkSettings']['Networks']['infrabox']['IPAddress']
+        address = subprocess.check_output(['podman', 'inspect', name, '--format',
+            '{{(index .NetworkSettings.Networks "infrabox").IPAddress}}'], stderr=subprocess.PIPE, text=True).strip()
     with socket.create_connection((address, port), timeout=10) as connection:
         if name == 'postgresql':
             connection.sendall(struct.pack('!II', 8, 80877103))

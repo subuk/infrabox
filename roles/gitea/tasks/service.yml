@@ -14,13 +14,35 @@
   until: gitea_health.status == 200
   retries: 40
   delay: 3
-- name: List Gitea local administrators
-  ansible.builtin.command: podman exec --user 1000 gitea gitea --config /etc/gitea/app.ini admin user list --admin
-  register: gitea_admins
-  changed_when: false
-- name: Create initial local Gitea administrator
+- name: Install native Gitea identity configuration helper
+  ansible.builtin.copy:
+    src: identity.py
+    dest: '{{ infrabox_config_root }}/identity/gitea-configure.py'
+    owner: root
+    group: root
+    mode: '0700'
+- name: Configure central Gitea authentication
   ansible.builtin.command:
-    argv: [podman, exec, --user, '1000', gitea, gitea, --config, /etc/gitea/app.ini, admin, user, create, --username, '{{ gitea_admin_username }}', --password, '{{ gitea_admin_password }}', --email, '{{ gitea_admin_email }}', --admin, --must-change-password=false]
-  when: gitea_admins.stdout is not search('(?m)^\d+\s+' ~ gitea_admin_username ~ '\s')
-  changed_when: true
+    argv: [python3, '{{ infrabox_config_root }}/identity/gitea-configure.py']
+    stdin: '{{ gitea_identity_parameters | to_json }}'
+  vars:
+    gitea_identity_parameters:
+      uid: '{{ gitea_uid }}'
+      url: 'https://git.{{ infrabox_domain }}'
+      ca: '{{ infrabox_root_ca_path }}'
+      admin_user: '{{ gitea_identity_admin_username }}'
+      admin_password: '{{ lldap_admin_password }}'
+      ldap_host: 'lldap.{{ infrabox_internal_domain }}'
+      base_dn: '{{ identity_directory_base_dn | default("dc=infrabox,dc=internal") }}'
+      reader_password: '{{ lldap_reader_password }}'
+      organizations: '{{ identity_gitea_organizations | default([platform_organization | default("infrabox-platform")]) }}'
+      clients_file: '{{ infrabox_config_root }}/identity/clients.json'
+      issuer: 'https://vault.{{ infrabox_domain }}/v1/identity/oidc/provider/infrabox'
+  register: gitea_identity_configuration
+  changed_when: gitea_identity_configuration.rc == 0 and (gitea_identity_configuration.stdout | from_json).changed
+  failed_when: false
   no_log: true
+- name: Report sanitized Gitea authentication failure
+  ansible.builtin.fail:
+    msg: '{{ gitea_identity_configuration.stderr }}'
+  when: gitea_identity_configuration.rc != 0

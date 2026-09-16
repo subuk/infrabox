@@ -1,0 +1,25 @@
+import os
+import ldap
+from django_auth_ldap.config import LDAPSearch, GroupOfNamesType
+
+AUTH_LDAP_SERVER_URI = 'ldaps://lldap.{{ infrabox_internal_domain }}:6360'
+AUTH_LDAP_BIND_DN = 'uid=svc-ldap-reader,ou=people,{{ identity_directory_base_dn | default("dc=infrabox,dc=internal") }}'
+AUTH_LDAP_BIND_PASSWORD = os.environ['LDAP_READER_PASSWORD']
+LDAP_CA_CERT_FILE = '/run/infrabox-ca/root-ca.crt'
+LDAP_IGNORE_CERT_ERRORS = False
+AUTH_LDAP_CONNECTION_OPTIONS = {ldap.OPT_X_TLS_CACERTFILE: LDAP_CA_CERT_FILE,
+                                ldap.OPT_X_TLS_REQUIRE_CERT: ldap.OPT_X_TLS_DEMAND,
+                                ldap.OPT_X_TLS_NEWCTX: 0}
+AUTH_LDAP_USER_SEARCH = LDAPSearch(
+    'ou=people,{{ identity_directory_base_dn | default("dc=infrabox,dc=internal") }}',
+    ldap.SCOPE_SUBTREE, '(&(uid=%(user)s)(infraboxIdentityType=service))')
+AUTH_LDAP_USER_ATTR_MAP = {'email': 'mail'}
+AUTH_LDAP_ALWAYS_UPDATE_USER = True
+AUTH_LDAP_GROUP_SEARCH = LDAPSearch(
+    'ou=groups,{{ identity_directory_base_dn | default("dc=infrabox,dc=internal") }}', ldap.SCOPE_SUBTREE,
+    '(|(cn=infrabox:netbox:admin)(cn=infrabox:netbox:editor)(cn=infrabox:netbox:reader))')
+AUTH_LDAP_GROUP_TYPE = GroupOfNamesType(name_attr='cn')
+AUTH_LDAP_MIRROR_GROUPS = ['infrabox:netbox:admin', 'infrabox:netbox:editor', 'infrabox:netbox:reader']
+AUTH_LDAP_USER_FLAGS_BY_GROUP = {
+    'is_superuser': 'cn=infrabox:netbox:admin,ou=groups,{{ identity_directory_base_dn | default("dc=infrabox,dc=internal") }}',
+}

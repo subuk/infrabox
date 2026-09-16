@@ -1,0 +1,35 @@
+---
+- name: Create protected native identity helper directory
+  ansible.builtin.file:
+    path: /usr/local/libexec/infrabox
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+- name: Install central NetBox service inspector
+  ansible.builtin.copy:
+    src: service-identity.py
+    dest: /usr/local/libexec/infrabox/netbox-service-identity.py
+    owner: root
+    group: root
+    mode: '0700'
+- name: Configure native NetBox role catalog and starter vocabulary
+  ansible.builtin.command:
+    argv:
+      - podman
+      - exec
+      - -i
+      - --workdir
+      - /opt/netbox/netbox
+      - netbox
+      - /opt/netbox/venv/bin/python
+      - -c
+      - |
+        import os, sys, django, contextlib, io
+        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'netbox.settings')
+        with contextlib.redirect_stdout(io.StringIO()):
+            django.setup()
+        exec(sys.stdin.read())
+    stdin: '{{ lookup("ansible.builtin.file", role_path ~ "/files/roles.py") }}'
+  register: netbox_role_catalog
+  changed_when: netbox_role_catalog.rc == 0 and (netbox_role_catalog.stdout | from_json).changed

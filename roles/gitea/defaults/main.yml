@@ -1,5 +1,4 @@
 ---
 gitea_image: docker.gitea.com/gitea:1.26.4-rootless
 gitea_uid: 1000
-gitea_admin_username: admin
-gitea_admin_email: admin@infrabox1.krglv.com
+gitea_identity_admin_username: svc-identity-admin

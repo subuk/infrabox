@@ -11,8 +11,9 @@ AddDevice={{ tpm2_pkcs11_device }}
 SecurityLabelType=infrabox_openbao.process
 DropCapability=all
 NoNewPrivileges=true
-{% if openbao_tls_enabled %}
+{% if openbao_tls_enabled | bool %}
 Network=infrabox.network
+PodmanArgs=--hosts-file=none
 NetworkAlias=openbao.{{ infrabox_internal_domain }}
 PublishPort=127.0.0.1:8200:8200
 {% else %}

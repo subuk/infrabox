@@ -23,6 +23,7 @@
       gitea: '{{ gitea_database_password }}'
       netbox: '{{ netbox_database_password }}'
       grafana: '{{ grafana_database_password }}'
+      lldap: '{{ lldap_database_password }}'
   register: postgresql_database_result
   changed_when: postgresql_database_result.rc == 0 and (postgresql_database_result.stdout | from_json).changed
   no_log: true

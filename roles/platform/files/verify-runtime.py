@@ -20,13 +20,13 @@ def verify(c):
     assert ':container_t:' in metadata['label'], 'Runner lacks container SELinux confinement'
     assert all('sock' not in m['Destination'] for m in metadata['mounts']), 'Runtime socket mounted'
     assert int(command(['podman', 'exec', 'platform-runner', 'cat', '/proc/self/uid_map']).split()[1]) != 0, 'Host root mapping'
-    for name, port in [('postgresql', 5432), ('redis', 6379)]:
+    for name, port in [('postgresql', 5432), ('redis', 6379), ('lldap', 6360)]:
         address = command(['podman', 'inspect', name, '--format',
             '{{(index .NetworkSettings.Networks "infrabox").IPAddress}}']).strip()
         c.setdefault('blocked', []).append([address, port])
     backend = json.loads(command(['podman', 'network', 'inspect', 'infrabox']))[0]
     for subnet in backend['subnets']:
-        for port in (22, 8200, 9100):
+        for port in (22, 8200, 9100, 16360, 17170):
             c['blocked'].append([subnet['gateway'], port])
     code = '''import json,os,socket,ssl,sys
 from pathlib import Path

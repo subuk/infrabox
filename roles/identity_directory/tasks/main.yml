@@ -1,0 +1,42 @@
+---
+- name: Create controller-managed identity configuration directory
+  ansible.builtin.file:
+    path: '{{ infrabox_config_root }}/identity'
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+  tags: [install, configure]
+- name: Install one-shot native directory bootstrap helper
+  ansible.builtin.copy:
+    src: '{{ playbook_dir }}/roles/lldap/files/bootstrap.py'
+    dest: '{{ infrabox_config_root }}/identity/directory-bootstrap.py'
+    mode: '0700'
+    owner: root
+    group: root
+  tags: [install, configure]
+- name: Configure role catalog and apply initial identity assignments once
+  ansible.builtin.command:
+    argv: [python3, '{{ infrabox_config_root }}/identity/directory-bootstrap.py']
+    stdin: '{{ identity_directory_parameters | to_json }}'
+  vars:
+    identity_directory_parameters:
+      http_address: http://127.0.0.1:17170
+      ldaps_address: 'ldaps://lldap.{{ infrabox_internal_domain }}:16360'
+      ca_file: '{{ infrabox_root_ca_path }}'
+      base_dn: '{{ identity_directory_base_dn }}'
+      admin_username: '{{ identity_directory_admin_username }}'
+      admin_password: '{{ lldap_admin_password }}'
+      state_file: '{{ infrabox_config_root }}/identity/directory-bootstrap-state.json'
+      role_groups: '{{ identity_directory_role_groups }}'
+      users: '{{ identity_directory_users }}'
+  register: identity_directory_bootstrap
+  changed_when: identity_directory_bootstrap.rc == 0 and (identity_directory_bootstrap.stdout | from_json).changed
+  failed_when: false
+  no_log: true
+  tags: [configure]
+- name: Report sanitized directory bootstrap failure
+  ansible.builtin.fail:
+    msg: '{{ identity_directory_bootstrap.stderr }}'
+  when: identity_directory_bootstrap.rc != 0
+  tags: [configure]

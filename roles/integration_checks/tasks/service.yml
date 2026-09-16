@@ -4,5 +4,5 @@
     name: '{{ item }}'
     daemon_reload: '{{ (integration_checks_units.changed | default(false)) }}'
     enabled: true
-    state: '{{ "restarted" if (integration_checks_units.changed | default(false)) or (item == "infrabox-health.service" and (integration_checks_code.changed | default(false))) else "started" }}'
-  loop: [infrabox-checks.timer, infrabox-canary.timer, infrabox-health.service]
+    state: '{{ "restarted" if (integration_checks_units.changed | default(false)) or (item in ["infrabox-health.service", "infrabox-mcp-runtime.service"] and (integration_checks_code.changed | default(false))) else "started" }}'
+  loop: [infrabox-mcp-runtime.service, infrabox-checks.timer, infrabox-mcp-check.timer, infrabox-canary.timer, infrabox-health.service]

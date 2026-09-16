@@ -20,7 +20,7 @@ COPY scanner-package.json /opt/infrabox/plugins/subnet-scan/package.json
 COPY health-index.mjs /opt/infrabox/plugins/health/index.mjs
 COPY health-package.json /opt/infrabox/plugins/health/package.json
 COPY health-plugin.json /opt/infrabox/plugins/health/openclaw.plugin.json
-COPY openclaw-probe.mjs /opt/infrabox/monitoring/openclaw-probe.mjs
+COPY openclaw-probe.mjs mcp-probe-runtime.mjs /opt/infrabox/monitoring/
 
 COPY diagnostics-install.mjs /opt/infrabox/diagnostics/install.mjs
 

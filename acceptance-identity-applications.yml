@@ -1,0 +1,6 @@
+---
+- ansible.builtin.import_playbook: acceptance-identity.yml
+  vars:
+    identity_acceptance_grafana: true
+    identity_acceptance_gitea: true
+    identity_acceptance_netbox: true

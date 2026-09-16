@@ -10,8 +10,11 @@ User={{ netbox_uid }}:0
 DropCapability=all
 NoNewPrivileges=true
 Network=infrabox.network
+PodmanArgs=--hosts-file=none
 EnvironmentFile={{ infrabox_config_root }}/netbox/netbox.env
 Volume={{ infrabox_config_root }}/netbox/configuration.py:/etc/netbox/config/configuration.py:ro,z
+Volume={{ infrabox_config_root }}/netbox/ldap_config.py:/etc/netbox/config/ldap/ldap_config.py:ro,z
+Volume={{ infrabox_config_root }}/netbox/infrabox_catalog.py:/opt/netbox/netbox/infrabox_catalog.py:ro,z
 Volume={{ infrabox_config_root }}/netbox/infrabox_auth.py:/opt/netbox/netbox/infrabox_auth.py:ro,z
 Volume={{ infrabox_storage_root }}/netbox/media:/opt/netbox/netbox/media:z
 Volume={{ infrabox_storage_root }}/netbox/reports:/opt/netbox/netbox/reports:z

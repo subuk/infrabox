@@ -26,8 +26,8 @@
           organization: '{{ platform_organization }}'
           repository: '{{ platform_repository }}'
           branch: '{{ platform_branch }}'
-          username: '{{ gitea_admin_username | default("admin") }}'
-          password: '{{ gitea_admin_password }}'
+          username: '{{ gitea_identity_admin_username | default("svc-identity-admin") }}'
+          password: '{{ lldap_admin_password }}'
           ca: '{{ infrabox_root_ca_path }}'
       no_log: true
       register: platform_gate

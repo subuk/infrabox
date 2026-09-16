@@ -1,0 +1,18 @@
+---
+identity_openbao_parameters:
+  token: '{{ (lookup("ansible.builtin.file", identity_openbao_controller_dir ~ "/openbao-init.json") | from_json).root_token }}'
+  socket: '{{ identity_openbao_socket }}'
+  directory: '{{ infrabox_config_root }}/identity'
+  ldap_url: 'ldaps://lldap.{{ infrabox_internal_domain }}:6360'
+  controller_ldap_url: 'ldaps://lldap.{{ infrabox_internal_domain }}:16360'
+  base_dn: '{{ identity_directory_base_dn }}'
+  bind_username: svc-ldap-reader
+  bind_password: '{{ lldap_reader_password }}'
+  ca_file: '{{ infrabox_root_ca_path }}'
+  issuer: 'https://vault.{{ infrabox_domain }}'
+  provider: '{{ identity_openbao_provider }}'
+  human_ttl: '{{ identity_openbao_human_ttl | int }}'
+  human_max_ttl: '{{ identity_openbao_human_max_ttl | int }}'
+  enrollment_ttl: '{{ identity_openbao_enrollment_ttl | int }}'
+  role_groups: '{{ identity_directory_role_groups }}'
+  clients: '{{ identity_openbao_clients }}'

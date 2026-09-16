@@ -1,0 +1,16 @@
+---
+- name: Install native LDAP management clients
+  ansible.builtin.dnf:
+    name: openldap-clients
+    state: present
+- name: Inspect pinned LLDAP image
+  ansible.builtin.command:
+    argv: [podman, image, exists, '{{ lldap_image }}']
+  register: lldap_image_exists
+  changed_when: false
+  failed_when: lldap_image_exists.rc not in [0, 1]
+- name: Pull pinned LLDAP image when absent
+  ansible.builtin.command:
+    argv: [podman, pull, '{{ lldap_image }}']
+  changed_when: true
+  when: lldap_image_exists.rc != 0

@@ -1,4 +1,8 @@
 ---
+- name: Install host source staging dependency
+  ansible.builtin.dnf:
+    name: git-core
+    state: present
 - name: Validate Platform deployment parameters
   ansible.builtin.assert:
     that:
@@ -44,7 +48,7 @@
     src: '{{ item }}'
     dest: '/usr/local/libexec/infrabox-platform/{{ item }}'
     mode: '0700'
-  loop: [manage.py, netbox-identity.py, verify-runtime.py]
+  loop: [manage.py, verify-runtime.py]
   register: platform_helpers
 - name: Copy exact source bundle to the appliance
   ansible.builtin.copy:

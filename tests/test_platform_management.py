@@ -84,7 +84,7 @@ class RepositoryTests(unittest.TestCase):
                 m.changed = False
                 m.repo = '/repos/fixture/automation'
                 m.c = {'organization': 'fixture', 'repository': 'automation',
-                       'branch': 'master', 'provisioner': 'provisioner', 'operators': []}
+                       'branch': 'master', 'provisioner': 'provisioner'}
                 writes = []
                 def api(path, data=None, method='GET', **kwargs):
                     if method != 'GET':
@@ -93,9 +93,13 @@ class RepositoryTests(unittest.TestCase):
                     if path == '/orgs/fixture/teams?limit=50':
                         return [{'id': 3, 'name': 'Operators', 'permission': 'none',
                                  'units_map': {'repo.code': code_permission, 'repo.actions': 'write'},
-                                 'can_create_org_repo': False, 'includes_all_repositories': False}]
-                    if path == '/teams/3/members':
-                        return []
+                                 'can_create_org_repo': False, 'includes_all_repositories': False},
+                                *[{'id': i, 'name': name, 'permission': 'none',
+                                   'units_map': {'repo.code': code, 'repo.actions': 'read'},
+                                   'can_create_org_repo': False, 'includes_all_repositories': True}
+                                  for i, name, code in [(4, 'Developers', 'write'), (5, 'Readers', 'read')]]]
+                    if '/members' in path:
+                        self.fail('Team membership must remain owned by native central synchronization')
                     if path == m.repo:
                         return {'private': True, 'has_actions': True, 'has_pull_requests': False,
                                 'has_issues': False, 'has_wiki': False, 'default_branch': 'master'}

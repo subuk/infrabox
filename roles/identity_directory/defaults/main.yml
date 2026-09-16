@@ -1,0 +1,39 @@
+---
+identity_directory_base_dn: dc=infrabox,dc=internal
+identity_directory_admin_username: svc-identity-admin
+identity_directory_gitea_groups: >-
+  {{ (identity_gitea_organizations | default([platform_organization | default('infrabox-platform')]))
+     | product(['admin', 'developer', 'reader', 'operator', 'discovery'])
+     | map('join', ':') | map('regex_replace', '^', 'infrabox:gitea:') | list }}
+identity_directory_role_groups: >-
+  {{ ['infrabox:gitea:admin', 'infrabox:netbox:admin', 'infrabox:netbox:editor',
+      'infrabox:netbox:reader', 'infrabox:grafana:admin', 'infrabox:grafana:editor',
+      'infrabox:grafana:reader', 'infrabox:openbao:admin', 'infrabox:openbao:monitor']
+     + identity_directory_gitea_groups }}
+identity_directory_users:
+  - username: '{{ identity_directory_admin_username }}'
+    type: service
+    email: '{{ identity_directory_admin_username }}@{{ infrabox_domain }}'
+    groups: [lldap_admin, 'infrabox:gitea:admin', 'infrabox:grafana:admin']
+  - username: svc-ldap-reader
+    type: service
+    email: 'svc-ldap-reader@{{ infrabox_domain }}'
+    password: '{{ lldap_reader_password }}'
+    groups: [lldap_strict_readonly]
+  - username: svc-openclaw
+    type: service
+    email: 'svc-openclaw@{{ infrabox_domain }}'
+    password: '{{ identity_openclaw_password }}'
+    groups:
+      - infrabox:netbox:editor
+      - 'infrabox:gitea:{{ platform_organization | default("infrabox-platform") }}:discovery'
+  - username: svc-platform
+    type: service
+    email: 'svc-platform@{{ infrabox_domain }}'
+    password: '{{ identity_platform_password }}'
+    groups: ['infrabox:netbox:reader']
+  - username: svc-monitor
+    type: service
+    email: 'svc-monitor@{{ infrabox_domain }}'
+    password: '{{ identity_monitor_password }}'
+    groups: ['infrabox:openbao:monitor']

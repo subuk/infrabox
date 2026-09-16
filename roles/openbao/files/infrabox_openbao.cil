@@ -1,8 +1,11 @@
 (type infrabox_openbao_port_t)
 (typeattributeset port_type (infrabox_openbao_port_t))
+(type infrabox_ldaps_port_t)
+(typeattributeset port_type (infrabox_ldaps_port_t))
 (block infrabox_openbao
   (blockinherit container)
   (blockinherit restricted_net_container)
   (allow process tpm_device_t (chr_file (getattr open read write ioctl)))
   (allow process infrabox_openbao_port_t (tcp_socket (name_bind recv_msg send_msg)))
+  (allow process infrabox_ldaps_port_t (tcp_socket (name_connect recv_msg send_msg)))
 )

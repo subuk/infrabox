@@ -16,5 +16,5 @@
     src: '{{ item }}'
     dest: '/usr/local/libexec/infrabox-monitoring/{{ item }}'
     mode: '0755'
-  loop: [configure.py, worker.py, health.py, provision.py, netbox-probe.py, canary.yml]
+  loop: [configure.py, worker.py, health.py, provision.py, grafana_service.py, netbox-probe.py, canary.yml]
   register: integration_checks_code

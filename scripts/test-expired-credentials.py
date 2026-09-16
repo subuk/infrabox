@@ -68,4 +68,4 @@ for spec in registry['certificates']:
     result = subprocess.run(['openssl', 'x509', '-in', registry['root'] + '/' + spec['name'] + '/server.crt', '-noout', '-checkend', '0'], capture_output=True)
     assert result.returncode == 1
 assert time.time() > expires
-print('All four leaf certificates and the replacement SecretID have expired.', flush=True)
+print('All ' + str(len(registry['certificates'])) + ' leaf certificates and the replacement SecretID have expired.', flush=True)

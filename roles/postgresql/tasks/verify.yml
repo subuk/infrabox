@@ -21,6 +21,7 @@
     - {name: gitea, password: '{{ gitea_database_password }}'}
     - {name: netbox, password: '{{ netbox_database_password }}'}
     - {name: grafana, password: '{{ grafana_database_password }}'}
+    - {name: lldap, password: '{{ lldap_database_password }}'}
   loop_control:
     label: '{{ item.name }}'
   register: postgresql_tls_result

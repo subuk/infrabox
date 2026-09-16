@@ -1,4 +1,10 @@
 ---
+- name: Validate the technical identity used by native LDAP
+  ansible.builtin.assert:
+    that: grafana_identity_admin_username is match('^[a-z0-9][a-z0-9_.-]*$')
+- name: Load central OIDC client
+  ansible.builtin.include_role:
+    name: identity_clients
 - name: Create configuration directory
   ansible.builtin.file:
     path: '{{ infrabox_config_root }}/grafana'
@@ -63,6 +69,12 @@
     dest: '{{ infrabox_config_root }}/grafana/grafana.env'
     mode: '0600'
   no_log: true
+  notify: Restart grafana
+- name: Configure native LDAP for the central technical administrator
+  ansible.builtin.template:
+    src: ldap.toml.j2
+    dest: '{{ infrabox_config_root }}/grafana/ldap.toml'
+    mode: '0644'
   notify: Restart grafana
 - name: Define Grafana Quadlet
   ansible.builtin.include_role:

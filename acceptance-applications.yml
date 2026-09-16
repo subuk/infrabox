@@ -17,17 +17,17 @@
         - name: Run application acceptance
           ansible.builtin.command:
             argv: [python3, /run/infrabox-test-gitea.py]
-            stdin: '{{ {"domain": infrabox_domain, "password": gitea_admin_password} | to_json }}'
+            stdin: '{{ {"domain": infrabox_domain, "username": gitea_identity_admin_username | default("svc-identity-admin"), "password": lldap_admin_password} | to_json }}'
           register: infrabox_application_acceptance
           no_log: true
-          changed_when: false
+          changed_when: true
         - name: Report completed application acceptance
           ansible.builtin.debug:
             msg: '{{ infrabox_application_acceptance.stdout_lines }}'
       rescue:
         - name: Report sanitized acceptance failure
           ansible.builtin.fail:
-            msg: '{{ infrabox_application_acceptance.stderr | replace(gitea_admin_password, "[redacted]") }}'
+            msg: '{{ infrabox_application_acceptance.stderr | replace(lldap_admin_password, "[redacted]") }}'
       always:
         - name: Remove application acceptance helper
           ansible.builtin.file:

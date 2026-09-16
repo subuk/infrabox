@@ -1,7 +1,7 @@
 # Runner execution or history cleanup failure
 
 Gitea availability does not prove a runner can execute work. Check runner unit,
-readiness, queue age and the correlated canary run in `infrabox-monitor/canary`.
+readiness, queue age and the correlated canary run in `svc-monitor/canary`.
 A capacity-one runner may legitimately be busy. Do not dispatch overlapping
 canaries or declare an idle runner dead because it has no user jobs.
 

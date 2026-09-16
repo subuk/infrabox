@@ -14,7 +14,8 @@
       gid: '{{ openclaw_gid }}'
       url: '{{ openclaw_netbox_url }}'
       ca_path: '{{ infrabox_root_ca_path }}'
-      username: '{{ netbox_openclaw_username | default("infrabox-openclaw") }}'
+      username: '{{ netbox_openclaw_username | default("svc-openclaw") }}'
+      password: '{{ identity_openclaw_password }}'
       description: '{{ netbox_openclaw_token_description | default("InfraBox OpenClaw MCP") }}'
   register: openclaw_netbox_result
   changed_when: openclaw_netbox_result.rc == 0 and (openclaw_netbox_result.stdout | from_json).changed

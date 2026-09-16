@@ -22,11 +22,10 @@
       token_period: '{{ platform_token_period }}'
       managed_tag: '{{ platform_managed_tag }}'
       netbox_url: '{{ platform_netbox_url }}'
-      operators: '{{ platform_operators }}'
       trust: '{{ platform_trust_sources.results | map(attribute="stat.checksum") | list }}'
       ssh_trust: '{{ lookup("ansible.builtin.file", platform_known_hosts_file) if platform_known_hosts_file | length > 0 else "" }}'
       management: '{{ lookup("ansible.builtin.file", role_path ~ "/files/manage.py") }}'
-      identity: '{{ lookup("ansible.builtin.file", role_path ~ "/files/netbox-identity.py") }}'
+      identity: '{{ lookup("ansible.builtin.file", playbook_dir ~ "/roles/netbox/files/service-identity.py") }}'
       authorization: '{{ lookup("ansible.builtin.file", playbook_dir ~ "/roles/netbox/templates/infrabox_auth.py.j2") }}'
       container: '{{ lookup("ansible.builtin.template", "runner.container.j2") }}'
       runner: '{{ lookup("ansible.builtin.template", "runner.yml.j2") }}'
@@ -113,6 +112,8 @@
 - name: Apply Platform edge restrictions through the owning role
   ansible.builtin.include_role:
     name: nginx
+  vars:
+    nginx_verify_openclaw: false
 - name: Render trusted runner configuration
   ansible.builtin.template:
     src: runner.yml.j2

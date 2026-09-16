@@ -62,6 +62,10 @@
   ansible.builtin.command: semanage port -a -t infrabox_openbao_port_t -p tcp 8201
   when: openbao_port_labels.stdout is not search('infrabox_openbao_port_t[^\n]*8201')
   changed_when: true
+- name: Label only directory LDAPS port for OpenBao egress
+  ansible.builtin.command: semanage port -a -t infrabox_ldaps_port_t -p tcp 6360
+  when: openbao_port_labels.stdout is not search('infrabox_ldaps_port_t[^\n]*6360')
+  changed_when: true
 - name: Read TPM device group
   ansible.builtin.stat:
     path: '{{ tpm2_pkcs11_device }}'

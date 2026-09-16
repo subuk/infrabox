@@ -3,7 +3,9 @@ import io
 import json
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 import zipfile
+from urllib.error import HTTPError
 from urllib.request import Request
 
 spec = importlib.util.spec_from_file_location('platform_gate', Path(__file__).resolve().parents[1] / 'scripts/test-platform-compatibility.py')
@@ -12,6 +14,30 @@ spec.loader.exec_module(gate)
 
 
 class CompatibilityTests(unittest.TestCase):
+    def test_missing_fixture_never_dispatches_and_uncertain_dispatch_is_not_repeated(self):
+        config = {'gitea_url': 'https://git.example.com', 'organization': 'project',
+                  'repository': 'automation', 'branch': 'master', 'username': 'fixture',
+                  'password': 'disposable-fixture', 'ca': '/unused/ca.pem'}
+        for missing in (True, False):
+            with self.subTest(missing_fixture=missing):
+                methods, report = [], {}
+                class Opener:
+                    def open(self, request, timeout):
+                        methods.append(request.get_method())
+                        if '/branches/' in request.full_url:
+                            return io.BytesIO(json.dumps({'commit': {'id': 'a' * 40}}).encode())
+                        if '/contents/' in request.full_url:
+                            if missing:
+                                raise HTTPError(request.full_url, 404, 'missing fixture', {}, None)
+                            return io.BytesIO(b'{"type":"file"}')
+                        raise HTTPError(request.full_url, 503, 'uncertain server result', {}, None)
+                with patch.object(gate, 'build_opener', return_value=Opener()), patch.object(gate.ssl, 'create_default_context', return_value=None):
+                    with self.assertRaises(gate.GateError):
+                        gate.run(config, report)
+                self.assertEqual(methods.count('POST'), 0 if missing else 1)
+                self.assertEqual(report['dispatch_status'], 'not_attempted' if missing else 'uncertain')
+                self.assertNotIn('run_id', report)
+
     def archive(self, files):
         stream = io.BytesIO()
         with zipfile.ZipFile(stream, 'w') as archive:

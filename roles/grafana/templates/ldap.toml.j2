@@ -1,0 +1,25 @@
+# Only the existing central technical administrator may use password auth.
+# Human users enter through OIDC; native local-password auth is disabled.
+[[servers]]
+host = "lldap.{{ infrabox_internal_domain }}"
+port = 6360
+use_ssl = true
+start_tls = false
+ssl_skip_verify = false
+min_tls_version = "TLS1.2"
+root_ca_cert = "/run/infrabox-ca/root-ca.crt"
+bind_dn = "uid=svc-ldap-reader,ou=people,{{ identity_directory_base_dn | default('dc=infrabox,dc=internal') }}"
+bind_password = '$__env{LDAP_READER_PASSWORD}'
+timeout = 10
+search_filter = "(&(uid=%s)(uid={{ grafana_identity_admin_username }})(infraboxIdentityType=service)(memberOf=cn=infrabox:grafana:admin,ou=groups,{{ identity_directory_base_dn | default('dc=infrabox,dc=internal') }}))"
+search_base_dns = ["ou=people,{{ identity_directory_base_dn | default('dc=infrabox,dc=internal') }}"]
+[servers.attributes]
+name = "displayName"
+username = "uid"
+member_of = "memberOf"
+email = "mail"
+[[servers.group_mappings]]
+group_dn = "cn=infrabox:grafana:admin,ou=groups,{{ identity_directory_base_dn | default('dc=infrabox,dc=internal') }}"
+org_role = "Admin"
+grafana_admin = true
+org_id = 1

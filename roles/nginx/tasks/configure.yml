@@ -38,6 +38,8 @@
     argv: [semanage, port, -a, -t, infrabox_proxy_port_t, -p, tcp, '{{ openclaw_port | default(18789) | string }}']
   changed_when: true
   when: nginx_port_labels.stdout is not search('infrabox_proxy_port_t[^\n]*' ~ (openclaw_port | default(18789) | string))
+- name: Configure central login and directory route
+  ansible.builtin.import_tasks: identity.yml
 - name: Render native nginx configuration
   ansible.builtin.template:
     src: nginx.conf.j2

@@ -62,7 +62,7 @@ provisions Platform before OpenClaw; for component deployment run the existing
 
 | Setting | Default |
 | --- | --- |
-| `openclaw_discovery_username` | `infrabox-openclaw-discovery` |
+| `openclaw_discovery_username` | `svc-openclaw` |
 | `openclaw_discovery_gitea_url` | Platform Gitea URL |
 | `openclaw_discovery_organization` | `infrabox-platform` |
 | `openclaw_discovery_repository` | `automation` |

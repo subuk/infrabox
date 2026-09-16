@@ -1,0 +1,21 @@
+[Unit]
+Description=InfraBox fixed native MCP probe runtime
+BindsTo=openclaw.service
+After=openclaw.service
+PartOf=openclaw.service
+StartLimitIntervalSec=0
+[Service]
+Type=simple
+ExecStart=/usr/bin/podman exec --no-session --env NODE_COMPILE_CACHE=/tmp/infrabox-monitoring-compile-cache openclaw node /opt/infrabox/monitoring/openclaw-probe.mjs mcp-server
+ExecStop=-/usr/bin/podman exec --no-session openclaw node /opt/infrabox/monitoring/openclaw-probe.mjs mcp-stop
+Restart=always
+RestartSec=5
+TimeoutStopSec=15
+KillMode=control-group
+UMask=0077
+MemoryMax=256M
+CPUQuota=50%
+StandardOutput=null
+StandardError=null
+[Install]
+WantedBy=openclaw.service

@@ -2,12 +2,47 @@ import importlib.util
 import itertools
 import json
 from pathlib import Path
+import subprocess
+import sys
+import time
 import unittest
 
 def module(name):
     spec=importlib.util.spec_from_file_location('monitor_'+name,Path('roles/integration_checks/files')/(name+'.py'))
     m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
 health=module('health');worker=module('worker');configure=module('configure')
+
+class ProbeDiagnosticTests(unittest.TestCase):
+    def test_only_fixed_phase_and_bounded_timing_survive(self):
+        valid={'infrabox_probe_phase':'load_policy','elapsed_ms':21000}
+        lines=[json.dumps(valid),'native diagnostic containing a credential',
+               json.dumps({**valid,'token':'private'}),
+               json.dumps({**valid,'infrabox_probe_phase':'private'}),
+               json.dumps({**valid,'elapsed_ms':True}),
+               json.dumps({**valid,'elapsed_ms':120001})]
+        self.assertEqual(worker.probe_phase('\n'.join(lines).encode()),valid)
+        self.assertIsNone(worker.probe_phase(b'{"token":"private"}\n[]\nnull'))
+
+class ProbeCaptureTests(unittest.TestCase):
+    def command(self,code):return [sys.executable,'-c',code]
+    def test_input_and_both_output_streams_exceed_pipe_capacity(self):
+        rc,out,err=worker.capture_command(self.command(
+            'import sys;sys.stderr.write("e"*100000);sys.stderr.flush();'
+            'data=sys.stdin.read();sys.stdout.write(data);sys.exit(7)'),stdin='x'*100000,timeout=5)
+        self.assertEqual((rc,out,err),(7,b'x'*100000,b'e'*100000))
+    def test_output_bound_applies_to_each_stream(self):
+        for stream in ('stdout','stderr'):
+            with self.subTest(stream=stream),self.assertRaisesRegex(worker.ProbeError,'invalid_response'):
+                worker.capture_command(self.command('import sys;sys.'+stream+'.write("x"*100000)'),limit=1000,timeout=5)
+    def test_reported_success_does_not_replace_process_exit(self):
+        start=time.monotonic()
+        with self.assertRaises(subprocess.TimeoutExpired) as result:
+            worker.capture_command(self.command('import time;print(\'{"success":true}\',flush=True);time.sleep(30)'),timeout=0.2)
+        self.assertIn(b'"success":true',result.exception.output)
+        self.assertLess(time.monotonic()-start,5)
+    def test_closed_output_pipes_do_not_remove_exit_deadline(self):
+        with self.assertRaises(subprocess.TimeoutExpired):
+            worker.capture_command(self.command('import os,time;os.close(1);os.close(2);time.sleep(30)'),timeout=0.2)
 
 class HealthTests(unittest.TestCase):
     def catalog(self,n=1):
@@ -77,5 +112,17 @@ class CatalogTests(unittest.TestCase):
         self.assertNotEqual(enabled['generation'],disabled['generation'])
     def test_unique_check_ids(self):
         c,_=configure.build(self.settings());ids=[x['id'] for x in c['checks']];self.assertEqual(len(ids),len(set(ids)))
+    def test_slow_mcp_and_canary_do_not_share_basic_check_lane(self):
+        catalog,_=configure.build(self.settings())
+        lanes={lane:{c['id'] for c in catalog['checks'] if worker.check_lane(c)==lane}
+               for lane in ('core','mcp','canary',None)}
+        self.assertEqual(lanes['mcp'],{'openclaw_netbox'})
+        self.assertEqual(lanes['canary'],{'runner_canary','canary_retention'})
+        for check in catalog['checks']:
+            if check['adapter'] in ('unit','https'):
+                self.assertIn(check['id'],lanes['core'])
+            if check['adapter'] in ('native','derived'):
+                self.assertIn(check['id'],lanes[None])
+        self.assertEqual(sum(map(len,lanes.values())),len(catalog['checks']))
 
 if __name__=='__main__':unittest.main()

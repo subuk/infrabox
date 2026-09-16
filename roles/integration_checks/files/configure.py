@@ -13,13 +13,13 @@ def build(c):
                            max_age=interval * 3 + (200 if adapter == 'canary' else 20), severity=severity,
                            integration=integration, runbook=component if component in ('host', 'runner', 'openclaw') else 'services',
                            expr=expr, warn=warn, crit=crit, hold=hold))
-    units = ['openbao','openbao-agent','postgresql','redis','gitea','netbox','netbox-worker','nginx','prometheus','grafana','gitea-runner','openclaw']
+    units = ['openbao','openbao-agent','postgresql','redis','lldap','gitea','netbox','netbox-worker','nginx','prometheus','grafana','gitea-runner','openclaw']
     if c['scanner']:
         units.append('infrabox-scanner')
     for u in units:
         add('unit_' + u.replace('-', '_'), 'runner' if u == 'gitea-runner' else 'openclaw' if u == 'infrabox-scanner' else u.split('-')[0], 'unit', 'Required service is not active: ' + u)
         checks[-1]['unit'] = u + '.service'
-    for svc in ['git', 'netbox', 'vault', 'grafana', 'claw']:
+    for svc in ['git', 'netbox', 'vault', 'grafana', 'claw', 'ldap']:
         add('https_' + svc, {'git':'gitea','vault':'openbao','claw':'openclaw'}.get(svc,svc), 'https', 'Verified HTTPS interface failed: ' + svc)
         checks[-1]['service'] = svc
     for cid,comp,adapter,summary,integ in [
@@ -30,8 +30,12 @@ def build(c):
         ('openclaw_ready','openclaw','ready','Gateway readiness failed',''),
         ('openclaw_vault','openclaw','vault','OpenClaw Vault secret resolution failed','openbao'),
         ('openclaw_diagnostics','openclaw','diagnostics','Native Gateway diagnostics unavailable',''),
-        ('openbao_metrics','openbao','bao_metrics','OpenBao native telemetry or token renewal failed',''),
+        ('openbao_metrics','openbao','bao_metrics','OpenBao service LDAP authentication or native telemetry failed',''),
         ('gitea_metrics','gitea','gitea_metrics','Gitea native metrics unavailable',''),
+        ('identity_ldap','lldap','identity_ldap','LLDAP health, database TLS or LDAPS failed','postgresql'),
+        ('identity_oidc','openbao','identity_oidc','OpenBao OIDC issuer or keys unavailable','identity'),
+        ('identity_clients','identity','identity_clients','Application central login endpoint missing','oidc'),
+        ('identity_materialization','identity','identity_files','Protected runtime token materialization failed','credentials'),
         ('openbao_health','openbao','openbao','OpenBao is sealed, uninitialized or unavailable',''),
         ('grafana_datasource','grafana','grafana','Grafana cannot query its Prometheus datasource','prometheus'),
         ('host_contract','host','host','Host storage, security or clock contract failed',''),

@@ -22,12 +22,13 @@ catalogs, expected checks or observations never imply success.
 ## Cadence and retention
 
 - Scrape/evaluate and basic service/HTTPS checks: 30 seconds.
-- Integration/authentication checks: 60 seconds.
+- Integration/authentication checks: 60 seconds. Native MCP has its own timer
+  and lock, so runtime materialization cannot block basic service observations.
 - Runner execution and canary history cleanup: 300 seconds, independent timer.
 - Prometheus retains 15 days with a default 2 GB size cap. Leave additional disk
   headroom for WAL, active data and other appliance services.
 
-The dedicated private Gitea repository is `infrabox-monitor/canary`. The workflow
+The dedicated private Gitea repository is `svc-monitor/canary`. The workflow
 has a one-minute job limit, no checkout, no generated artifact and no managed-host
 credentials. Completed run history is automatically deleted after one hour, with
 at most 12 completed runs retained. Active runs are never deleted by retention.
@@ -92,9 +93,14 @@ firewall rule. The isolated runner remains on its own network and UID mapping.
 
 Monitoring credentials are materialized into mode-0600 files in a private
 monitoring directory. Gitea's monitor can access its own private canary repository;
+provisioning verifies its exact PAT scopes, token identity, absence of unrelated
+teams/repositories and the canary's privacy. A verified replacement is published
+before retiring older tokens with the managed monitoring prefix.
 Grafana uses a Viewer service account. OpenBao health also validates the certificate Agent’s current token through its
-configured verified HTTPS endpoint. OpenBao metrics use a separate periodic
-read-only telemetry token which can renew only itself. Root credentials arrive
+configured verified HTTPS endpoint. OpenBao metrics use `svc-monitor` on the service LDAP mount, with only the
+metrics policy and self-token operations. Each probe revokes its short-lived
+token after reading metrics; this also exercises the real OpenBao-to-LLDAP
+dependency. The monitoring LDAP password is protected in `secrets/ldap.json`. Root credentials arrive
 only during Ansible provisioning, over stdin, and are never retained by monitors.
 
 OpenClaw 2026.9.4 diagnostics is an official separately packaged plugin, pinned
@@ -105,9 +111,40 @@ therefore uses OpenClaw's actual MCP runtime/materialization and token-file laun
 with fixed read arguments, validated result shape and an explicit tool-exposure
 check. This is runtime integration evidence, not full conversational authorization
 parity. No NetBox inventory is written by monitoring.
-The fixed MCP runtime has a 20-second deadline and its NetBox read has a
-10-second deadline. The host allows 40 seconds for the enclosing Podman command,
-including process startup/teardown; this does not extend either inner deadline.
+The host supervises `infrabox-mcp-runtime.service`, a dedicated process inside
+OpenClaw's existing container and resource limits. It loads the pinned native
+modules once and retains the native MCP connection between observations. Each
+observation rereads current configuration, evaluates current policy and performs
+a new fixed NetBox read. No authorization result or API response is cached.
+A digest of the complete configuration and mounted NetBox token invalidates the
+connection before the next request when either changes. The native launcher
+continues to own credential delivery. Any failed observation closes the
+connection; the next observation can create a new one, without retrying or hiding
+the failed observation. Shutdown disposes the connection and its child process.
+Its private container-only Unix socket accepts exactly `probe\n`, permits one
+in-flight operation and returns only success or a fixed failure reason. The socket
+has mode 0600 in a 0700 directory; it publishes no network listener or host mount.
+The process follows OpenClaw stop/restart and boot. A bounded stop command checks
+the exact process identity before signalling it, preventing an orphaned probe
+server when only the helper restarts. A stuck operation terminates this helper
+and systemd restarts it; the Gateway is unaffected.
+Each fixed operation retains its 60-second overall deadline and 10-second actual
+NetBox read deadline. The host allows 75 seconds for its short-lived Podman
+client. A cold or unavailable helper fails the probe; it never returns cached
+success. Freshness and stabilization requirements remain unchanged.
+The helper also enables Node's native compile cache in the container's disposable
+`/tmp/infrabox-monitoring-compile-cache` directory to reduce startup cost. See the
+[Node.js compile-cache contract](https://nodejs.org/download/release/v24.18.0/docs/api/module.html#module-compile-cache).
+The worker drains stdout and stderr concurrently through pipes, with a 1 MiB
+limit per stream and the same overall command deadline. A JSON success response
+does not pass the check until the process actually exits successfully. Output
+overflow or a hung process fails the observation and triggers bounded cleanup.
+Fixed host probes use the pinned Podman's attached `exec --no-session` mode to
+avoid database session tracking and lock contention from frequent concurrent
+commands. They retain their existing container users, stdin, exit-status checks
+and isolation. These short-lived exec sessions are not listed by the Podman
+session API; probe results remain in the normal monitoring observations. See
+[the Podman option contract](https://docs.podman.io/en/v5.8.2/markdown/podman-exec.1.html#no-session).
 
 The future trusted Platform runner and OpenClaw-to-Gitea discovery tools are not
 installed by KRG-15. KRG-6/KRG-9 must add checks when they provision these features.
@@ -121,6 +158,10 @@ InfraBox RootCA and require the expected application response; no SaaS is needed
 Grafana itself is unavailable during a Grafana/PostgreSQL/host outage, so the host
 health CLI and external observer are complementary access paths.
 
+Run `acceptance-monitoring-mcp.yml` to test the fixed private transport, helper
+restart without an orphan, and policy changes in a disposable configuration within
+one native process. It restarts only the helper and never edits production policy.
+
 On an explicitly authorized development appliance, run `acceptance-monitoring.yml`
 for service loss, pending/firing, recovery and frozen/absent observation tests.
 It temporarily stops NetBox, the probe scheduler and Prometheus and restores each
@@ -133,4 +174,16 @@ against an unspecified inventory.
 After at least two disposable canaries have completed, the optional host-side
 `scripts/test-monitoring-retention.py` exercises cleanup with a one-run test limit.
 It takes the normal canary lock and leaves the configured 12-run / one-hour policy
-unchanged. It deletes only completed history in `infrabox-monitor/canary`.
+unchanged. It deletes only completed history in `svc-monitor/canary`.
+
+
+KRG-17 adds LLDAP unit/health, database TLS and verified LDAPS checks, OIDC issuer
+and signing-key availability, native application login links, and protected
+runtime-token file checks. Probes emit fixed reason codes, never credentials.
+Grafana's Viewer monitoring service account and token use the native
+[service-account API](https://grafana.com/docs/grafana/latest/developer-resources/api-reference/http-api/api-legacy/serviceaccount/).
+The one-shot controller operation authenticates the existing central technical
+administrator through verified LDAP; the runtime monitor receives only its
+Viewer token. The helper checks native identity and datasource access before
+KV/file publication and retirement of old tokens. It refuses conflicting roles.
+No application user or token is created by writing Grafana database tables.

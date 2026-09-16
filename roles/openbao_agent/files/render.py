@@ -11,7 +11,7 @@ os.umask(0o077)
 name=sys.argv[1]
 config=json.loads(Path('/etc/infrabox/openbao-agent/certificates.json').read_text())
 spec=next(x for x in config['certificates'] if x['name']==name)
-if name not in ['openbao','postgresql','redis','nginx']: raise RuntimeError('Unknown certificate consumer')
+if name not in ['openbao','postgresql','redis','nginx','lldap']: raise RuntimeError('Unknown certificate consumer')
 root=Path(config['root']);dest=root/name
 data=json.loads(Path('/etc/infrabox/openbao-agent/rendered',name+'.json').read_text())
 serial=hashlib.sha256(data['certificate'].encode()).hexdigest()
@@ -45,5 +45,5 @@ unit=name+'.service'
 if subprocess.run(['systemctl','is-active','--quiet',unit]).returncode==0:
     if name=='nginx':
         run(['nginx','-t']);run(['systemctl','reload',unit])
-    elif name=='redis': run(['systemctl','restart',unit])
+    elif name in ['redis','lldap']: run(['systemctl','restart',unit])
     else: run(['podman','kill','--signal','HUP',name])

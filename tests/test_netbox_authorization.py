@@ -28,39 +28,52 @@ class BoundaryTests(unittest.TestCase):
     def setUpClass(cls):
         modules = {}
         for name in ('django', 'django.conf', 'django.core', 'django.core.exceptions',
-                     'netbox', 'netbox.authentication'):
+                     'django.contrib', 'django.contrib.auth', 'django.contrib.auth.backends',
+                     'social_core', 'social_core.exceptions', 'netbox', 'netbox.authentication'):
             modules[name] = ModuleType(name)
         modules['django.conf'].settings = SimpleNamespace(DEFAULT_PERMISSIONS=DEFAULTS)
         modules['django.core.exceptions'].PermissionDenied = PermissionDenied
         modules['netbox.authentication'].ObjectPermissionBackend = StockBackend
+        modules['netbox.authentication'].RemoteUserBackend = StockBackend
+        modules['django.contrib.auth.backends'].BaseBackend = object
+        modules['social_core.exceptions'].AuthForbidden = PermissionDenied
         template = Path(__file__).resolve().parents[1] / 'roles/netbox/templates/infrabox_auth.py.j2'
         environment = Environment()
         environment.filters['to_json'] = json.dumps
         environment.filters['bool'] = bool
-        code = environment.from_string(template.read_text()).render(netbox_openclaw_username='infrabox-openclaw', platform_enabled=True)
+        code = environment.from_string(template.read_text()).render(netbox_openclaw_username='svc-openclaw', platform_enabled=True)
         namespace = {}
         with patch.dict(sys.modules, modules):
             exec(compile(code, str(template), 'exec'), namespace)
         cls.backend = namespace['InfraBoxObjectPermissionBackend']()
+        cls.password_boundary = namespace['RejectLocalPasswords']()
 
     def user(self, name):
-        return SimpleNamespace(get_username=lambda: name)
+        return SimpleNamespace(pk=1, get_username=lambda: name,
+            social_auth=SimpleNamespace(filter=lambda **kwargs: SimpleNamespace(exists=lambda: name == 'human')))
+
+    def test_local_password_fallback_is_always_stopped(self):
+        with self.assertRaises(PermissionDenied):
+            self.password_boundary.authenticate(None, username='human', password='local-password')
+
+    def test_permission_boundary_does_not_intercept_ldap_login(self):
+        self.assertIsNone(self.backend.authenticate(None, username='service', password='ldap-password'))
 
     def test_service_cannot_reach_fallback_implicit_grants(self):
-        user = self.user('infrabox-openclaw')
+        user = self.user('svc-openclaw')
         for permission in DEFAULTS:
             with self.assertRaises(PermissionDenied):
                 self.backend.has_perm(user, permission)
         self.assertEqual(self.backend.get_object_permissions(user), {'dcim.add_device': [None]})
 
     def test_allowed_service_actions_still_require_object_permissions(self):
-        user = self.user('infrabox-openclaw')
+        user = self.user('svc-openclaw')
         self.assertTrue(self.backend.has_perm(user, 'dcim.add_device'))
         self.assertFalse(self.backend.has_perm(user, 'dcim.delete_device'))
         self.assertFalse(self.backend.has_perm(user, 'users.add_user'))
 
     def test_explicit_inventory_delete_grant_is_honored(self):
-        user = self.user('infrabox-openclaw')
+        user = self.user('svc-openclaw')
         with patch.object(StockBackend, 'get_object_permissions', return_value={
             **DEFAULTS, 'dcim.delete_device': [None],
             'extras.change_configcontext': [None],
@@ -73,7 +86,7 @@ class BoundaryTests(unittest.TestCase):
                     self.backend.has_perm(user, permission)
 
     def test_platform_cannot_reach_fallback_implicit_grants(self):
-        user = self.user('infrabox-platform')
+        user = self.user('svc-platform')
         for permission in DEFAULTS:
             with self.assertRaises(PermissionDenied):
                 self.backend.has_perm(user, permission)

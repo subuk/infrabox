@@ -1,0 +1,46 @@
+---
+- name: Verify native identity boundaries with disposable directory users
+  hosts: infrabox
+  become: true
+  roles:
+    - role: identity_directory
+    - role: identity_openbao
+  tasks:
+    - name: Install disposable identity acceptance helper
+      ansible.builtin.copy:
+        src: roles/identity_openbao/files/acceptance.py
+        dest: '{{ infrabox_config_root }}/identity/acceptance.py'
+        mode: '0700'
+    - name: Install bounded TOTP recovery for disposable acceptance
+      ansible.builtin.copy:
+        src: roles/identity_openbao/files/reset-totp.py
+        dest: '{{ infrabox_config_root }}/identity/reset-totp.py'
+        mode: '0700'
+    - name: Install bounded project acceptance helper
+      ansible.builtin.copy:
+        src: roles/identity_openbao/files/project-acceptance.py
+        dest: '{{ infrabox_config_root }}/identity/project-acceptance.py'
+        mode: '0700'
+    - name: Exercise native first login and profile permissions and remove disposable users
+      ansible.builtin.command:
+        argv: [python3, '{{ infrabox_config_root }}/identity/acceptance.py']
+        stdin: '{{ identity_acceptance_parameters | to_json }}'
+      vars:
+        identity_acceptance_parameters:
+          identity: '{{ identity_openbao_parameters }}'
+          admin_username: '{{ identity_directory_admin_username }}'
+          admin_password: '{{ lldap_admin_password }}'
+          grafana: '{{ identity_acceptance_grafana | default(false) | bool }}'
+          gitea: '{{ identity_acceptance_gitea | default(false) | bool }}'
+          netbox: '{{ identity_acceptance_netbox | default(false) | bool }}'
+          projects: '{{ identity_acceptance_projects | default(false) | bool }}'
+          gitea_uid: '{{ gitea_uid | default(1000) | int }}'
+      register: identity_acceptance
+      changed_when: true
+      failed_when: false
+      no_log: true
+    - name: Report sanitized acceptance result
+      ansible.builtin.assert:
+        that: identity_acceptance.rc == 0
+        fail_msg: '{{ identity_acceptance.stderr }}'
+        success_msg: '{{ identity_acceptance.stdout }}'

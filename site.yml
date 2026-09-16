@@ -4,6 +4,10 @@
 - ansible.builtin.import_playbook: foundation.yml
 - ansible.builtin.import_playbook: pki.yml
 - ansible.builtin.import_playbook: services.yml
+- ansible.builtin.import_playbook: lldap.yml
+- ansible.builtin.import_playbook: identity.yml
+# Native source bootstrap requires the verified HTTPS application routes.
+- ansible.builtin.import_playbook: identity-edge.yml
 - ansible.builtin.import_playbook: applications.yml
 - ansible.builtin.import_playbook: edge.yml
   vars:

@@ -44,8 +44,9 @@ def manage(c, bao, netbox, validate):
     value = fields.get('apiToken', '')
     if not isinstance(value, str):
         raise ManagementError('NetBox apiToken field must be a string')
-    valid = netbox('inspect', value)['valid']
-    changed = False
+    inspected = netbox('inspect', value)
+    valid = inspected['valid']
+    changed = inspected.get('changed', False)
     if c['action'] in ('verify', 'finalize'):
         if not valid or not path.exists() or path.read_text().strip() != value:
             raise ManagementError('OpenBao and runtime NetBox credentials do not match a valid integration token')
@@ -54,7 +55,7 @@ def manage(c, bao, netbox, validate):
             raise ManagementError('Runtime NetBox credential permissions are incorrect')
         validate(value)
         if c['action'] == 'finalize':
-            changed = netbox('finalize', value)['changed']
+            changed = netbox('finalize', value)['changed'] or changed
             if marker.exists():
                 marker.unlink()
                 changed = True
@@ -104,12 +105,22 @@ def main(c):
         finally:
             connection.close()
 
-    code = Path('/usr/local/libexec/infrabox/netbox-openclaw-integration.py').read_text()
+    code = Path('/usr/local/libexec/infrabox/netbox-service-identity.py').read_text()
 
     def netbox(action, token):
+        if action == 'create':
+            request = urllib.request.Request(c['url'].rstrip('/') + '/api/users/tokens/provision/',
+                data=json.dumps({'username': c['username'], 'password': c['password'],
+                                 'description': c['description'], 'write_enabled': True, 'version': 2}).encode(),
+                headers={'Content-Type': 'application/json'})
+            with opener.open(request, timeout=30) as response:
+                body = json.load(response)
+                if response.status != 201 or body.get('version') != 2:
+                    raise ManagementError('Native service token provisioning failed')
+                return {'changed': True, 'token': 'nbt_' + body['key'] + '.' + body['token']}
         # NetBox gets only its own credential, never the OpenBao management token.
         request = {'code': code, 'config': {'action': action, 'token': token,
-                   'username': c['username'], 'description': c['description']}}
+                   'username': c['username'], 'password': c['password'], 'role': 'editor', 'description': c['description']}}
         process = subprocess.run([
             'podman', 'exec', '-i', '--workdir', '/opt/netbox/netbox', 'netbox',
             '/opt/netbox/venv/bin/python', '-c',
@@ -135,13 +146,13 @@ def main(c):
         if not c['url'].startswith('https://'):
             raise ManagementError('NetBox URL must use verified HTTPS')
         request = urllib.request.Request(c['url'].rstrip('/') + '/api/dcim/sites/?limit=1',
-                                         headers={'Authorization': 'Token ' + value})
+                                         headers={'Authorization': 'Bearer ' + value})
         with opener.open(request, timeout=30) as response:
             if response.status != 200 or 'results' not in json.load(response):
                 raise ManagementError('NetBox credential HTTPS read failed')
         for endpoint in ('users', 'tokens', 'permissions'):
             request = urllib.request.Request(c['url'].rstrip('/') + '/api/users/' + endpoint + '/?limit=1',
-                                             headers={'Authorization': 'Token ' + value})
+                                             headers={'Authorization': 'Bearer ' + value})
             try:
                 with opener.open(request, timeout=30):
                     raise ManagementError('NetBox integration unexpectedly permits administrative reads')

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Вход в InfraBox</title>
+  <link rel="stylesheet" href="/login/identity.css">
+  <script src="/login/identity.js" defer></script>
+</head>
+<body><main>
+  <a class="brand" href="/login/">InfraBox</a>
+  <h1>Вход в рабочее пространство</h1>
+  <p id="intro">Используйте личный логин и пароль из LLDAP.</p>
+  <p id="message" role="status" aria-live="polite"></p>
+  <form id="credentials">
+    <label for="username">Имя пользователя</label>
+    <input id="username" name="username" autocomplete="username" required>
+    <label for="password">Пароль</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" required>
+    <button type="submit">Продолжить</button>
+  </form>
+  <form id="profile" hidden>
+    <h2>Ваш профиль</h2>
+    <p>Укажите email для входа в приложения. Он сохранится в вашем профиле OpenBao отдельно от LLDAP.</p>
+    <label for="email">Email</label>
+    <input id="email" name="email" type="email" autocomplete="email" maxlength="254" required>
+    <label for="display_name">Имя</label>
+    <input id="display_name" name="display_name" autocomplete="name" maxlength="256" required>
+    <button type="submit">Сохранить и продолжить</button>
+  </form>
+  <section id="complete" hidden>
+    <h2>Вы вошли</h2>
+    <p>Выберите приложение. Доступ зависит от назначенных вам ролей.</p>
+    <nav id="apps" aria-label="Приложения"></nav>
+    <p>Для входа в интерфейс OpenBao выберите LDAP, путь <code>ldap-human</code>, затем введите личный пароль.</p>
+    <button id="edit-profile" type="button">Изменить профиль</button>
+  </section>
+  <button id="logout" type="button" hidden>Завершить сессию входа</button>
+</main></body>
+</html>

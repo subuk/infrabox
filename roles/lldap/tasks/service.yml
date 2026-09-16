@@ -1,0 +1,17 @@
+---
+- name: Apply LLDAP generated service
+  ansible.builtin.include_role:
+    name: quadlet
+    tasks_from: service
+  vars:
+    quadlet_name: lldap
+- name: Apply LLDAP configuration changes
+  ansible.builtin.meta: flush_handlers
+- name: Wait for LLDAP HTTP health
+  ansible.builtin.uri:
+    url: 'http://127.0.0.1:{{ lldap_management_http_port }}/health'
+    status_code: 200
+  register: lldap_health
+  until: lldap_health.status | default(0) == 200
+  retries: 30
+  delay: 3

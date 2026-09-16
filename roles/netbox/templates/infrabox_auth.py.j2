@@ -1,21 +1,57 @@
-"""Exclude implicit self-service grants from dedicated integration identities."""
+"""Use native group synchronization, prohibit local-password fallback."""
 from django.conf import settings
 from django.core.exceptions import PermissionDenied
-from netbox.authentication import ObjectPermissionBackend
+from django.contrib.auth.backends import BaseBackend
+from netbox.authentication import ObjectPermissionBackend, RemoteUserBackend
+from social_core.exceptions import AuthForbidden
 
-SERVICE_USERS = frozenset({{ ([netbox_openclaw_username] + (['infrabox-platform'] if platform_enabled | default(false) | bool else [])) | to_json }})
+ROLE_GROUPS = frozenset(['infrabox:netbox:admin', 'infrabox:netbox:editor', 'infrabox:netbox:reader'])
+
+
+def require_oidc_roles(backend, response, **kwargs):
+    groups = response.get('groups')
+    if backend.name != 'oidc' or not isinstance(groups, list) or not all(isinstance(g, str) for g in groups):
+        raise AuthForbidden(backend)
+    if not ROLE_GROUPS.intersection(groups):
+        raise AuthForbidden(backend)
+
+
+def sync_oidc_roles(backend, user, response, **kwargs):
+    require_oidc_roles(backend, response)
+    RemoteUserBackend().configure_groups(user, sorted(ROLE_GROUPS.intersection(response['groups'])))
+    if user.has_usable_password():
+        user.set_unusable_password()
+        user.save(update_fields=['password'])
+
+
+def is_service(user):
+    # The native social-auth association persists the human/service distinction
+    # across API token requests. LDAP-only identities have no OIDC association.
+    return not getattr(user, 'pk', None) or not user.social_auth.filter(provider='oidc').exists()
+
+
+class RejectLocalPasswords(BaseBackend):
+    def authenticate(self, request, username=None, password=None, **kwargs):
+        # Service LDAP was already attempted. Stop Django before its implicit
+        # ModelBackend can accept a locally-set password (including an admin's).
+        if username is not None and password is not None:
+            raise PermissionDenied
+        return None
 
 
 class InfraBoxObjectPermissionBackend(ObjectPermissionBackend):
+    def authenticate(self, request, **kwargs):
+        return None
+
     def get_object_permissions(self, user_obj):
         permissions = super().get_object_permissions(user_obj)
-        if user_obj.get_username() in SERVICE_USERS:
+        if is_service(user_obj):
             for name in settings.DEFAULT_PERMISSIONS:
                 permissions.pop(name, None)
         return permissions
 
     def has_perm(self, user_obj, perm, obj=None):
-        if (user_obj.get_username() in SERVICE_USERS
+        if (is_service(user_obj)
                 and perm in settings.DEFAULT_PERMISSIONS):
             # Django stops at PermissionDenied instead of consulting the stock
             # fallback backend, even if another caller populated its cache first.

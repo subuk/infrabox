@@ -1,0 +1,8 @@
+[Unit]
+Description=Observe native MCP independently of basic service checks
+[Timer]
+OnBootSec=45s
+OnUnitActiveSec=60s
+AccuracySec=1s
+[Install]
+WantedBy=timers.target

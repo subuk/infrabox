@@ -2,7 +2,7 @@
 - name: Reconcile NetBox-owned integration resources
   ansible.builtin.include_role:
     name: netbox
-    tasks_from: openclaw
+    tasks_from: identity
 - name: Install host-only NetBox credential management helper
   ansible.builtin.copy:
     src: netbox-credential.py

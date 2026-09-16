@@ -28,11 +28,33 @@ http {
     ssl_certificate_key {{ infrabox_pki_root }}/nginx/server.key;
     ssl_protocols TLSv1.2 TLSv1.3;
     client_max_body_size 1g;
-{% if upstream.name in ["vault", "grafana", "claw"] %}
+{% if upstream.name in ["vault", "grafana", "claw", "ldap"] %}
     if ($infrabox_runner_client) { return 403; }
 {% endif %}
-{% if platform_enabled | default(false) | bool and upstream.name in ["grafana", "claw"] %}
+{% if platform_enabled | default(false) | bool and upstream.name in ["grafana", "claw", "ldap"] %}
     if ($infrabox_platform_client) { return 403; }
+{% endif %}
+{% if upstream.name == 'vault' %}
+    location /login/ {
+      alias /usr/share/nginx/html/identity/;
+      index index.html;
+      add_header Cache-Control "no-store" always;
+      add_header Referrer-Policy "no-referrer" always;
+      add_header X-Content-Type-Options "nosniff" always;
+      add_header Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src data:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'" always;
+    }
+    location = /ui/vault/identity/oidc/provider/{{ identity_openbao_provider | default('infrabox') }}/authorize {
+      alias /usr/share/nginx/html/identity/index.html;
+      default_type text/html;
+      add_header Cache-Control "no-store" always;
+      add_header Referrer-Policy "no-referrer" always;
+      add_header X-Content-Type-Options "nosniff" always;
+      add_header Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src data:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'" always;
+    }
+{% endif %}
+{% if upstream.name == 'git' %}
+    location = /user/forgot_password { return 404; }
+    location = /user/reset_password { return 404; }
 {% endif %}
     location / {
       proxy_pass {{ upstream.address }};

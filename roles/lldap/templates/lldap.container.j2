@@ -1,0 +1,26 @@
+[Unit]
+Description=InfraBox central LDAP directory
+After=postgresql.service openbao-agent.service
+Requires=postgresql.service
+[Container]
+Image={{ lldap_image }}
+ContainerName=lldap
+User={{ lldap_uid }}:{{ lldap_gid }}
+DropCapability=all
+NoNewPrivileges=true
+ReadOnly=true
+Network=infrabox.network
+NetworkAlias=lldap.{{ infrabox_internal_domain }}
+PublishPort=127.0.0.1:{{ lldap_management_http_port }}:17170
+PublishPort=127.0.0.1:{{ lldap_management_ldaps_port }}:6360
+Volume={{ infrabox_storage_root }}/lldap:/data:Z
+Volume={{ infrabox_config_root }}/lldap/lldap.toml:/etc/lldap/lldap.toml:ro,Z
+Volume={{ infrabox_pki_root }}/lldap:/run/infrabox-pki:ro,Z
+Volume={{ infrabox_root_ca_path }}:/run/infrabox-ca/root-ca.crt:ro,z
+Entrypoint=/app/lldap
+Exec=run --config-file /etc/lldap/lldap.toml
+[Service]
+Restart=on-failure
+TimeoutStartSec=180
+[Install]
+WantedBy=multi-user.target

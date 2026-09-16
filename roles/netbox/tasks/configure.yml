@@ -1,4 +1,7 @@
 ---
+- name: Load central OIDC client
+  ansible.builtin.include_role:
+    name: identity_clients
 - name: Create NetBox configuration directory
   ansible.builtin.file:
     path: '{{ infrabox_config_root }}/netbox'
@@ -12,6 +15,12 @@
     group: '0'
     mode: '0770'
   loop: [media, reports, scripts]
+- name: Install shared native role model catalog
+  ansible.builtin.copy:
+    src: catalog.py
+    dest: '{{ infrabox_config_root }}/netbox/infrabox_catalog.py'
+    mode: '0644'
+  notify: Restart netbox
 - name: Render scoped integration authorization backend
   ansible.builtin.template:
     src: infrabox_auth.py.j2
@@ -24,6 +33,12 @@
   ansible.builtin.template:
     src: configuration.py.j2
     dest: '{{ infrabox_config_root }}/netbox/configuration.py'
+    mode: '0644'
+  notify: Restart netbox
+- name: Render native service LDAP settings
+  ansible.builtin.template:
+    src: ldap_config.py.j2
+    dest: '{{ infrabox_config_root }}/netbox/ldap_config.py'
     mode: '0644'
   notify: Restart netbox
 - name: Render protected NetBox environment

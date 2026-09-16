@@ -1,5 +1,560 @@
 # Implementation status
 
+Pre-commit validation on 2026-09-16 passed all 91 Python tests, all 12 Node
+tests and `site.yml --syntax-check` with the selected development inventory.
+The Node socket tests required running outside the controller sandbox, which
+otherwise denied temporary Unix sockets (`EPERM`). After the operator applied
+the OpenAI provider settings and rebooted, read-only diagnostics confirmed the
+Vault SecretRef was accessible and both default and configured Gateway model
+catalogs returned the four configured OpenAI models as available. The operator
+confirmed the interface was working. No model inference was performed by these
+diagnostics.
+
+## KRG-17 native first login and self-service profile — 2026-09-16
+
+The operator changed the human-login contract: mandatory MFA is disabled, and
+users supply their own email in OpenBao. This supersedes the TOTP enrollment and
+per-user preparation behavior described in the historical checkpoints below.
+On the same `infrabox-krg17` appliance, LDAP now creates each human entity on first
+login using its immutable `entryUUID`; adding a person no longer requires running
+`identity.yml`. The LDAP identity type and application role groups remain required.
+Existing entities, aliases, TOTP secrets and application identifiers are retained.
+The retired enrollment mount rejects new logins.
+
+The existing login page collects email and display name using the user's own
+finite OpenBao token. A templated ACL permits reading/updating only that entity's
+metadata. It does not permit policy, alias, name or disabled-state changes, or
+access to other entities. OIDC username uses native LDAP alias metadata; roles
+use external groups. User-controlled metadata cannot grant either identity or
+roles. Email is explicitly unverified and Gitea automatic account linking remains
+disabled. Configuration reruns no longer import or overwrite human profiles.
+No synchronization job or privileged identity service was introduced.
+
+Local validation passed 91 Python tests, three login-page mocked-DOM Node tests,
+and the site and identity acceptance syntax checks. An isolated OpenBao 2.6.2
+instance passed 13 real ACL checks, including attempted root policy injection,
+foreign entity access, alias changes and mixed metadata/policy writes. Evidence:
+`profile-self-service-python.log`, `profile-self-service-node.log` and
+`profile-self-service-syntax.log` in `artifacts/infrabox-krg17/`.
+
+Owning-role deployment passed: `identity.yml` (`ok=8 changed=2 failed=0`) and
+`edge.yml` (`ok=21 changed=2 failed=0`), including verified HTTPS health routes.
+Evidence: `profile-self-service-identity.log` and `profile-self-service-edge.log`.
+Native application/project acceptance passed all 82 checks (`ok=13 changed=3
+failed=0`): native first login, own-profile writes and privilege boundaries,
+actual OIDC sessions in Gitea/NetBox/Grafana, native service credentials, role
+demotion, Gitea PAT/SSH project scope, profile preservation across configuration
+and LDAP email changes, and a new entity after username deletion/recreation.
+Disposable users were removed and their tokens revoked. Evidence:
+`profile-self-service-acceptance.log` / `.json`.
+
+The sequential `identity.yml`, `edge.yml` repeat and full `verify.yml` passed
+(`ok=127 changed=0 failed=0`, cumulative recap). This includes TPM communication,
+OpenBao and certificate Agent checks, actual application database/Redis TLS,
+verified public HTTPS, runner isolation, OpenClaw's native MCP read, service
+credential verification and Platform/runtime boundaries. Evidence:
+`profile-self-service-repeat-verify.log`. Browser acceptance remains excluded by
+the operator; no reboot or disruptive expiry/outage test was repeated.
+
+## KRG-17 second attempt — deployed and stabilized; discovery pending, 2026-09-16
+
+The operator recreated the appliance and confirmed `almalinux@192.168.32.206`,
+`infrabox1.krglv.com`, persistent vTPM and RSA-3072. The selected inventory is
+`inventories/local/hosts.yml`, alias `infrabox-krg17`. Fresh protected inputs and
+artifacts use that alias; the previous `infrabox1` initialization record remains
+untouched. Strict host-key checking, repeated SSH, passwordless sudo, AlmaLinux
+10.2, SELinux Enforcing, TPM 2.0 and DNS were verified. Previous appliance data
+and TPM store were absent. Historical acceptance below is not new-target evidence.
+
+The operator explicitly excluded browser acceptance on 2026-09-14. Continue
+Ansible and native HTTP/API integration checks; browser JavaScript/UX is not
+accepted and is not a blocker for the authorized implementation work.
+
+Outage, token lifecycle and controlled reboot tests passed. Following the MCP
+transport repair below, final stabilization passed with fresh observations for
+all 53 controls. Earlier failed windows remain preserved as historical evidence.
+The only pending live acceptance is discovery, which awaits explicit confirmation
+of the proposed permanent NetBox Site/Device after automatic approval review
+rejected the ambiguous authorization. No deployment or disruptive test is running.
+
+After the operator reported the hypervisor repaired, another bounded gate still
+returned inconclusive (`hypervisor-fixed-stabilization.log` / `.json`), now with
+LDAP telemetry, MCP and Vault SecretRef observations affected. A fresh sample
+still measured 11.65% CPU steal. Three native MCP diagnostic reads succeeded but
+took 95.6 seconds cold and 21.7/17.8 seconds thereafter
+(`hypervisor-fixed-mcp-diagnostic.jsonl`). The monitor now retains its native
+transport, while rereading policy/configuration and performing a real API read
+on every observation. A full-config/token-file digest change or any failure
+closes the transport before reuse; shutdown disposes its native child. Local
+validation passed 91 Python tests, nine Node tests and both syntax checks.
+Owning-role deployment passed (`ok=131 changed=3 failed=0`,
+`mcp-connection-deploy.log`). Focused live acceptance passed (`ok=13 changed=1
+failed=0`, `mcp-connection-acceptance.log`): retained-transport fresh reads,
+same-process policy deny/restore, helper replacement with terminated old native
+children, unchanged Gateway invocation and private socket permissions.
+Final stabilization passed (`ok=4 changed=1 failed=0`,
+`mcp-connection-stabilization.log` / `.json`), generation `54196aabf0b0928f`,
+from `2026-09-16T13:22:16Z` through `13:26:55Z`: all 53 controls had at least four
+distinct fresh successful observations, with no final new issues or unstable
+checks. An initial LDAP telemetry failure remains in `observed_failures`; the
+verifier established a successful observation window after recovery. The final
+runtime snapshot also passed (`mcp-connection-runtime-evidence.json` / `.log`):
+healthy complete coverage, six verified HTTPS endpoints, five normal certificate
+lifetimes, native renewal success and all five unrelated tokens preserved.
+
+The user authorized discovery, but automatic approval review rejected creating
+the proposed permanent Site/Device because that reply did not explicitly confirm
+the records. No records were created. An explicit exact-record confirmation was
+requested; do not retry that write until it arrives.
+
+The full deployment now passes on this target. The single central technical
+administrator, human TOTP/OIDC flow, service authentication without MFA and
+application role boundaries are deployed. The full-site checkpoint before the
+supervised MCP repair is preserved under
+`artifacts/infrabox-krg17/`:
+
+| Check | Full-site checkpoint result | Evidence |
+| --- | --- | --- |
+| Local validation | 91 Python tests, 3 Node tests, Ansible syntax passed | `krg17-local-tests.log`, `monitoring-node-tests.log`, `krg17-syntax.log` |
+| Human/service identity and project permissions | 67 native HTTP/API checks passed; disposable fixtures removed | `identity-projects-final.log` / `.json` |
+| Complete site deployment and verification | `ok=726 changed=12 failed=0` | `site-mcp-lane-repeat.log` |
+| Stabilization at this checkpoint | 53 checks, at least 3 fresh observations each, no observed failures or unstable checks | `site-mcp-lane-stabilization.json` |
+| Monitoring role repeat at this checkpoint | `ok=47 changed=0 failed=0` | `monitor-mcp-lane-repeat.log` |
+| Runtime snapshot at this checkpoint | 53/53 healthy; 6 verified HTTPS endpoints; 6 tokens unchanged; native renewal passed; all 5 leaf lifetimes normal | `final-runtime-evidence.json` |
+
+The full run's 12 changes are confined to the monitoring repair, its validated
+configuration generation/reload and baseline/verifier evidence. Application,
+identity, PKI and runtime integration configuration remained unchanged; see
+`site-mcp-lane-changes.json`. Stabilization generation `f02772eef2447209` passed
+from `2026-09-14T23:36:28Z` through `23:39:56Z` (September 15 local time).
+
+The operator authorized dependency outages, certificate expiry, OpenClaw token
+replacement/revocation and one combined appliance/OpenClaw reboot on September 15.
+The previously selected testbox was reconfirmed: `almalinux@192.168.32.207`,
+`testbox.net.krglv.com`. Direct SSH with the existing key and preserved host trust
+passed; no Device/VM record exists in the new NetBox. A concrete proposal for an
+Acceptance site and the minimal former Device/context is awaiting confirmation.
+
+The identity outage helper passed all 13 observations: expected critical LDAP/OIDC
+alerts, restored service login and verified OIDC HTTPS, and unchanged OpenBao
+cluster/root CA. The subsequent identity rerun and full runtime verification
+passed, but the final stabilization gate failed (`ok=114 changed=3 failed=1`):
+intermittent MCP startup delays and transient probe coverage loss. Evidence:
+`acceptance-identity-recovery.log`, `identity-recovery-stabilization-failed.json`.
+The entire acceptance stage is not yet passed. Direct and isolated systemd MCP
+reads then passed in 4–6 seconds; no timeout or alert threshold was relaxed.
+The stabilization-only repeat also failed (`ok=2 changed=0 failed=1`), preserved
+in `identity-recovery-stabilization-repeat.log` / `.json`. CPU sampling/profile
+confirmed intermittent repeated native module-startup cost despite the compile
+cache. No OpenClaw memory pressure or OOM occurred (peak below 1 GB, limit 2 GB).
+A dedicated supervised MCP process now retains loaded code while rereading policy,
+recreating/disposing the native connection and making a fresh read each time.
+Its fixed private Unix socket, per-operation watchdog and exact-process stop are
+covered by seven passing Node tests; all 91 Python tests and syntax checks pass.
+The new image passed full OpenClaw deployment/verification (`ok=131 changed=4
+failed=0`, `mcp-runtime-gateway-deploy.log`); monitoring deployment passed
+(`ok=48 changed=9 failed=0`, `mcp-runtime-monitoring-deploy.log`). Live helper
+acceptance passed (`ok=11 changed=1 failed=0`, `acceptance-monitoring-mcp.log`):
+a real read, private socket permissions, helper replacement with no orphan and
+unchanged Gateway invocation, plus current-policy deny/restore in the same native
+process using a disposable configuration. Stabilization then passed (`ok=4 changed=1 failed=0`, generation
+`54196aabf0b0928f`, `mcp-runtime-stabilization.log` / `.json`): all 53 checks had
+at least three fresh successful observations, with no final issues/unstable checks.
+Transition coverage/MCP failures are retained in the report; a new successful
+window was established after recovery. The original failed outage playbook log
+remains unchanged; subsequent renewal/recovery results follow below.
+
+Automated leaf renewal passed on this target (`ok=40 changed=4 failed=0`,
+`acceptance-renewal.log`): all five server certificates were observed replaced
+on verified TLS before their previous expiry, NetBox retained its invocation,
+and the Agent restored the normal fourteen-day leaves. Controlled certificate
+and Agent SecretID expiry/recovery passed (`ok=132 changed=8 failed=0`,
+`acceptance-recovery.log`), including the full appliance verifier. A fresh
+September 16 preflight confirmed healthy complete monitoring, all five leaves
+at fourteen days, and removal of the disposable expired SecretID.
+
+The remaining authorized stages now run sequentially with stop-on-failure and
+a persistent progress record: `final-acceptance-sequence-20260916.json`. The
+existing testbox SSH key was restored to its scoped KV path with create-only CAS
+and exact read-back; different existing credentials would not be overwritten.
+Platform SSH trust preparation passed (`ok=106 changed=5 failed=0`,
+`final-20260916-prepare-testbox-platform.log`). No Device/VM record was created.
+
+A six-hour September 16 history review found intermittent failures; it does not
+establish uninterrupted stability. The largest MCP/coverage failure window
+(approximately 07:29–07:40 UTC) followed a VM boot at 07:27:56 UTC, outside this
+acceptance sequence. Gateway and the supervised MCP helper started automatically
+and had no restarts; runner retries occurred during startup. Peak sampled CPU
+usage was approximately 97%, including up to 28% CPU steal. These observations
+correlate with startup/resource delays but do not prove the cause of every failed
+probe. A separate short MCP failure around 05:50 UTC is retained in history.
+Evidence: `monitoring-history-20260916.json`,
+`monitoring-history-detail-20260916.json`, and
+`resource-incident-events-20260916.json`. This incidental boot does not count as
+the still-pending controlled reboot acceptance.
+
+Monitoring outage acceptance passed (`ok=5 changed=3 failed=0`,
+`final-20260916-monitoring-outages.log` / `.json`): ten observations establish
+NetBox failure/critical escalation and recovery, frozen-success handling,
+Prometheus outage/recovery, and actual Gateway health socket/tool invocation.
+A transient service LDAP login timeout was observed during recovery; complete
+healthy monitoring subsequently returned without changing deadlines or policy.
+The separate diagnostic is retained in
+`openbao-monitoring-login-observation-20260916.json`.
+
+OpenClaw token lifecycle acceptance passed (`ok=433 changed=23 failed=0`,
+`final-20260916-openclaw-token-lifecycle.log`). A one-hour period required a
+replacement, followed by verified Gateway operation and retirement of the old
+token. The seven-day period was restored. Explicit revocation produced a visible
+native renewal failure without changing the credential file or restarting the
+Gateway; the normal role then replaced the token, verified Gateway integrations
+and successful native renewal. The combined appliance/OpenClaw reboot sequence
+passed after this successful stage (`ok=179 changed=3 failed=0`,
+`final-20260916-combined-reboot.log`). Its single authorized reboot established
+TPM auto-unseal, preserved CA identity and full `verify.yml` appliance
+verification. The OpenClaw token remained unchanged across boot and its scheduled
+boot renewal succeeded. Disposable SecretRef, authenticated WebSocket through
+nginx, verified HTTPS, unauthorized-request rejection and fixture cleanup passed.
+The reboot is complete; do not repeat it to resume later checks.
+
+The monitoring rerun passed unchanged (`ok=47 changed=0 failed=0`,
+`final-20260916-monitoring-repeat.log`), and both native restricted token renewals
+passed. The final stabilization gate did not pass (`ok=2 changed=0 failed=1`,
+`final-20260916-final-stabilization.log` / `.json`): `openbao_metrics` remained
+unstable, with one MCP failure also observed. Its failed record is preserved and
+the guarded sequence stopped before runtime evidence collection. Four subsequent
+fixed probe rounds passed: LDAP login took 7.4–8.3 seconds, telemetry reads
+approximately 0.2 seconds; revocation succeeded. Nginx recorded a client-aborted
+login during the failed window. A single stabilization-only quiet repeat also
+failed (`ok=2 changed=0 failed=1`, `final-stabilization-quiet-repeat.log` / `.json`),
+with the same two unstable checks. Sixty five-second resource samples recorded
+peak CPU steal of 28.75% (mean 9.42%) and peak total busy time of 83.96%. The VM
+exposes eight logical CPUs and approximately 16 GiB RAM; a later idle sample had
+approximately 13 GiB available. Resource contention is a hypothesis, not a proven
+explanation of every failure; the operator was asked to check hypervisor CPU
+limits/load. No timeouts or alert limits changed.
+See `final-stabilization-auth-diagnostic.json` and
+`final-stabilization-resource-samples.jsonl`. The matching Prometheus series in
+`final-stabilization-probe-history.json` show probe durations of 1.8–11.8 seconds
+for `openbao_metrics` and 2.9–32.7 seconds for `openclaw_netbox`, with failed
+observations in both series.
+
+The post-acceptance runtime snapshot passed independently at
+`2026-09-16T12:20:49Z` (`post-acceptance-runtime-evidence.json` / `.log`): all 53
+checks healthy with complete coverage, six verified controller-side HTTPS
+interfaces, five normal fourteen-day certificate lifetimes, and successful
+native Platform/OpenClaw renewal. The five unrelated runtime tokens were
+preserved; only the intentionally replaced OpenClaw OpenBao token changed.
+This healthy snapshot does not replace either failed stabilization gate.
+
+The later successful stabilization and final runtime evidence are summarized at
+the top of this section. Remaining live acceptance: discovery.
+Discovery uses the previously selected testbox and awaits confirmation of its
+concrete new-NetBox record proposal. These remaining scenarios have not yet passed
+on this recreated VM. Browser execution remains excluded. The detailed checkpoints
+below retain earlier failures and do not supersede the latest results above.
+
+### Implementation and verification checkpoints
+
+Gitea native LDAP/OIDC source deployment now passed (`ok=16 changed=2`), and
+its repeat passed without changes (`ok=16 changed=0`). HTTP health and SSH 2222
+checks passed. Fixed the native source handler's `two_factor_policy` field and
+host-loopback DNS inheritance (`--hosts-file=none`) in owning Quadlet templates.
+OpenBao's equivalent container DNS change was applied with successful TPM
+unseal/health verification (`ok=33 changed=2`). Evidence: `gitea-native-final.log`,
+`gitea-native-repeat.log`, and `openbao-container-dns.log` under the selected
+artifact alias. NetBox deployment passed (`ok=35 changed=9`) after correcting required
+ObjectPermission actions at creation; web, worker and both PostgreSQL/Redis TLS
+checks passed (`netbox-role-fix.log`). Subsequent LDAP integration corrected
+the image's `/etc/netbox/config/ldap/ldap_config.py` mount and supplied the CA
+explicitly before creating each LDAP TLS context. The repaired role passed
+(`ok=33 changed=4`, `netbox-ldap-trust.log`); native `svc-platform` authentication
+returned only the central reader group.
+
+Initial application identity API acceptance passed 52 checks (`ok=12 changed=2`), recorded
+in `identity-applications-api.json`/`.log`: actual PKCE/OIDC exchange, first TOTP
+setup and recovery, human/service isolation, native Gitea PAT, NetBox v2 token
+positive/negative permissions, role removal and administrator demotion in all
+three applications. Tests use native HTTP flows without running a browser.
+The latest successful run removed its disposable identities and tokens.
+
+Grafana's last-server-admin guard required keeping the same central technical
+`svc-identity-admin` as its native LDAP administrator. Its initial central
+Grafana role was assigned once on this in-progress fresh appliance and is in the
+fresh-bootstrap defaults; normal reruns still preserve removed memberships.
+LDAP admits only that service identity with the central Grafana admin group.
+The built-in local-password client and login form are disabled; Basic reaches
+only LDAP. Live acceptance rejected a human LDAP password, another service and
+an actual disposable local password. Technical Grafana deployment passed
+(`ok=28 changed=6`, `grafana-central-technical.log`). Generic OAuth warning logs
+could contain opaque access tokens, so that logger now emits only errors.
+Monitoring provisioning now uses native Grafana service-account/token APIs,
+not database writes; the successful deployment is recorded below.
+
+Local checks currently pass 91 Python tests, three Node monitoring tests, Python source
+parsing and site/application-identity syntax checks. Component/API checks below
+are current-target evidence. Full-site verification now passes as summarized
+above; outage and reboot acceptance remain incomplete. The first full `site.yml` run
+stopped in Platform installation at the missing `git-core` dependency. The
+owning role now installs it. Subsequent Platform runs built the pinned image
+and corrected NetBox's LDAP loader stdout handling; an early nginx check of
+the not-yet-installed OpenClaw was moved to the final verification stage.
+Platform subsequently passed deployment and real runtime isolation checks
+(`ok=109 changed=12`, `platform-edge-order.log`). Its mapped runner UID,
+SELinux confinement, scoped NetBox/OpenBao reads, HTTPS routes and restricted
+backend ports were verified. OpenClaw then passed deployment (`ok=138 changed=44`,
+`openclaw-central-first.log`): native periodic renewal, isolation/private and
+public TLS trust, NetBox reads through stdio and the Gateway's native MCP client,
+service-role/credential validation, Gitea workflow access and runtime tool
+registrations. No model calls, external scans or discovery dispatch ran.
+Monitoring deployment passed (`ok=76 changed=28`, `monitoring-central-first.log`),
+including native Grafana Viewer service-account/token creation, `svc-monitor`
+provisioning and active schedulers. The post-deployment stabilization gate was
+still pending at that checkpoint. The
+general runner and stricter Gitea monitoring PAT scope checks were subsequently
+applied (`ci-central-first.log`: `ok=32 changed=13`; `monitoring-scoped-final.log`:
+`ok=21 changed=1`). A component-only monitoring rerun needed independent discovery
+of its existing backend address; the role now handles that without requiring
+the node-exporter role to run first. A live snapshot reports all 53 checks
+healthy with complete coverage (`health-before-sites.json`). Application transport
+acceptance passed (`ok=6 changed=3`, `applications-central-acceptance.log`): private
+Git HTTPS/SSH clone and push, and an actual general-runner Actions job. The old
+Platform compatibility gate returned HTTP 404: revision `e0af645` intentionally
+removed its temporary `compatibility.yml` fixture. This is not a passed Platform
+workflow test. The helper now checks the selected revision before dispatch and
+records whether dispatch was attempted/confirmed. Current discovery acceptance
+requires an explicitly selected prepared managed host; the operator was asked
+for that target. Full-site repetition was still pending at that checkpoint.
+Gitea's external-credential and regular-organization-creation guards were
+applied (`ok=17 changed=2`, `gitea-password-guards.log`); password reset routes
+are blocked at nginx. Expanded native project/credential acceptance passed
+67 checks (`ok=13 changed=2`, `identity-projects-final.log`/`.json`), including
+local-password/reset rejection, three-project separation, human PAT/SSH,
+organization-creation denial and project access removal across a configuration
+rerun. Disposable identities, repositories, organizations, LDAP/OpenBao groups
+and tokens were cleaned up. The initial expanded run hit Gitea's requirement
+to delete repositories before their organization; the helper was corrected and
+the exact three old fixtures were removed (`project-cleanup.json`) before the
+successful full repeat. Browser execution remains excluded.
+The first complete `site.yml` traversal reached and passed all component/runtime
+verification (`site-central-first.log`: `ok=723 changed=2 failed=1`), but its final
+stabilization gate was **inconclusive**, not passed. All 53 checks were currently
+healthy; intermittent `openclaw_netbox` timeouts reset its fresh observation window.
+Safe parallel-worker diagnostics reproduced a 20-second native MCP deadline
+before the NetBox read: policy loading reached the read at 20.1 seconds. Other
+rounds finished in 5.7 and 7.2 seconds; no memory-limit/OOM event occurred.
+Evidence: `mcp-worker-timing.log`. The runtime budget is now 60 seconds with a
+75-second host-command bound; the actual NetBox read remains bounded to ten
+seconds. Fixed phase/timing diagnostics omit credentials and native log text.
+The corrected image/monitoring deployment and stabilization subsequently passed
+(`mcp-runtime-repair.log`: cumulative `ok=208 changed=13 failed=0`). Generation
+`3530cf098c1e146f` established at least three fresh observations for all 53 checks,
+with no final issues or unstable checks. Transition/coverage failures during
+generation replacement remain in the report; the verifier required a new
+successful window after recovery. The final full-site result is above. Neither
+the earlier failed gate nor standalone timing rounds count as successful
+stabilization acceptance.
+The subsequent full repeat preserved all application/runtime configuration
+(`site-central-repeat.log`: `ok=723 changed=1 failed=1`; the sole successful
+mutation was baseline evidence), and every component verification passed.
+Its final gate again returned **inconclusive**, with recovered Podman-command
+timeouts affecting PostgreSQL/runner/MCP probes and a coverage reset. The
+current host had no OOM and no lasting application failure; this does not
+establish a successful full-site acceptance. Fixed probes now use the pinned
+Podman's native attached `exec --no-session` to avoid repeated session database
+locking. Source documentation and installed CLI support were checked. This
+monitoring-only repair applied (`monitor-sessionless-repair.log`: `ok=73
+changed=9`); its immediate repeat added 72 tasks and zero changes. Stabilization
+still returned inconclusive for MCP alone (`ok=147 changed=9 failed=1`), with
+one internal timeout lasting 69.7 seconds. Four exact installed-probe diagnostic
+runs using pipes completed in 5.9–7.9 seconds (`native-mcp-timing.log`); these
+do not establish final acceptance. The worker now drains stdout/stderr through
+bounded pipes instead of temporary regular files, retaining both output and
+process-exit deadlines. Regression checks cover both streams above pipe
+capacity, output limits, and a child that reports success but never exits.
+The capture change applied and its immediate repeat added 72 tasks with zero
+changes. Its stabilization passed with all 53 checks, at least three fresh
+observations, no observed failures and no unstable checks (generation
+`3c4ff6b99fccfa62`, `monitor-pipe-repair.log`: cumulative `ok=149 changed=10
+failed=0`). The subsequent complete site run again passed component checks
+but failed stabilization (`site-central-final.log`: `ok=723 changed=1 failed=1`).
+Historical Prometheus metrics distinguish the actual MCP timeout (62.3 seconds)
+from stale HTTPS/unit observations: those probes had succeeded, but the common
+worker lock delayed their next cycle beyond the 110-second freshness limit.
+The final runtime snapshot was healthy (53/53); controller TLS for all six
+interfaces, normal 14-day leaf lifetimes, native token renewal and preservation
+of all six runtime credentials passed (`final-runtime-evidence.json`). This is
+snapshot evidence, not a successful stabilization gate.
+MCP now has an independent bounded systemd timer/worker lock; the deployment
+verifier dispatches that lane separately. Core probes retain their existing
+cadence and freshness requirements; MCP failures remain visible. Six exact-capture native MCP rounds passed in 6.4–12.6 seconds
+(`exact-capture-timing.log`); they do not establish long-term stability. The repair
+applied successfully (`monitor-mcp-lane-repair.log`: `ok=48 changed=5 failed=0`),
+and all three schedulers are active. The first repeat captured an incomplete
+new-generation baseline and was deliberately stopped during certificate-Agent
+fact gathering (`site-mcp-lane-final.log`, controller exit 143); it is not a passed
+run. A fresh 53/53 healthy preflight was recorded (`mcp-lane-preflight.json`)
+before starting `site-mcp-lane-repeat.log`, which subsequently passed deployment
+and stabilization with the additional compile-cache setting described below. The first component command omitted
+the `node_exporter` prerequisite tag and stopped before Prometheus configuration
+activation (`monitor-mcp-lane-apply.log`: `ok=24 changed=5 failed=1`); the corrected
+command includes that dependency. No application authorization or isolation
+has been relaxed.
+
+The independent lane kept 52 other checks fresh during another MCP timeout;
+coverage stayed complete. Fixed phase evidence and CPU sampling showed expensive
+native runtime/module startup, rather than a slow policy decision or network
+read (`mcp-policy-phases.jsonl`: one successful 55.1-second run;
+`mcp-cgroup-timing.jsonl`). The pinned container uses Node.js 24.19.0. Three
+actual probes with Node's native compile cache passed in 9.8 seconds cold and
+about 5–6 seconds warm (`mcp-compile-cache-timing.jsonl`), using approximately
+13 MiB of temporary container storage. The worker now enables this cache only
+for MCP, preserving current policy evaluation, real reads and all deadlines.
+Local checks passed before the ongoing full run reached the monitoring role;
+that run deployed this final worker configuration and passed stabilization
+with no observed failures. The monitoring repeat also passed with zero changes (`ok=47 changed=0 failed=0`).
+
+The bounded `acceptance-identity-recovery.yml` LLDAP/OpenBao outage and critical
+alert scenarios are prepared and syntax-checked, but have not run; explicit
+outage authorization is still required.
+
+Local disposable fixtures using synthetic credentials verified LLDAP 0.6.3,
+OpenBao 2.6.2, Gitea 1.26.4 and NetBox 4.7.0-5.1.1. Sanitized passing results are
+under `artifacts/infrabox-krg17/phase1/`; these are compatibility checks, not live
+appliance or browser acceptance:
+
+- LLDAP's non-editable `infraboxIdentityType` attribute supports mutually
+  exclusive human/service filters with a restricted bind reader. Humans can
+  edit their own profile/email, but cannot edit the managed type or another user.
+- OpenBao's normal human mount requires TOTP and issues no application token
+  for a password alone. Service LDAP login has no MFA. A separate, short-lived
+  enrollment mount can issue an entity-bound token restricted to native TOTP
+  self-generation. That token cannot read KV, authorize OIDC, create tokens or
+  use administrative MFA operations. The static enrollment implementation was
+  subsequently deployed; its browser/UX execution is excluded from acceptance.
+- Stable LDAP `entryUUID` aliases and controller projection of email preserve
+  the canonical entity and TOTP across email changes. Actual OIDC code exchange,
+  RS256 signature validation and claims verified unchanged `sub`/username with
+  the updated email. Application policies must stay off the shared entity and
+  its identity groups so they cannot leak into enrollment tokens.
+- Gitea service LDAP login provisions its own PAT through the native API;
+  human passwords are rejected. A central service administrator can configure
+  the final LDAP source through native administration without argv secrets or
+  a local administrator. Native LDAP group/team mapping grants and removes team
+  membership on login.
+- NetBox's native LDAP token endpoint provisions a v2 token for the authenticated
+  service without a usable local password; human passwords are rejected.
+  The early fixture's negative API requests used an incomplete v2 credential;
+  their HTTP 403 results do not prove authenticated authorization boundaries.
+  Live acceptance now builds the complete `nbt_<key>.<secret>` credential and
+  requires a positive inventory read before negative permission checks.
+  A small OIDC pipeline
+  adapter can pass allowlisted claims to native `configure_groups`; promotion,
+  demotion, membership replacement and rejection of foreign role names passed.
+  Full live role permissions remain unaccepted at this fixture checkpoint.
+
+The first foundation run stopped at a firewalld startup readiness race. The
+owning role now waits for `firewall-cmd --state` before immediate rule changes.
+The retry passed (`ok=45 changed=10`), its stable repeat passed (`ok=44 changed=0`),
+and `verify-foundation.yml` passed (`ok=19 changed=0`). The TPM completed actual
+RSA OAEP checks without key replacement.
+
+The first OpenBao runtime run exposed a pre-existing template error: the
+documented `-e openbao_tls_enabled=false` string selected TLS branches in Jinja.
+Both runtime templates now use explicit boolean conversion; a regression test
+covers string and boolean overrides. The corrected localhost-only bootstrap
+runtime passed (`ok=33 changed=4`) with the actual PKCS11 seal. The initialized
+server is now on final HTTPS (`ok=34 changed=4`). PKI bootstrap passed
+(`ok=24 changed=10`), followed by a repeat without initialization
+(`ok=21 changed=0`). All three CA fingerprints were unchanged. Recovery material
+remains on the controller; public CA exports are under the new artifact alias.
+
+Certificate Agent bootstrap passed (`ok=20 changed=13`), host trust passed
+(`ok=4 changed=2`), and final HTTPS Agent configuration passed
+(`ok=19 changed=3`), including actual AppRole authentication, certificate chains
+and hostnames. The five leaf consumers are OpenBao, PostgreSQL, Redis, LLDAP and
+nginx. LLDAP certificate renewal uses the existing Agent's validated atomic
+publication followed by a controlled LLDAP restart; renewal acceptance is pending.
+
+PostgreSQL/Redis deployment passed (`ok=35 changed=17`): all four database roles,
+including LLDAP, connected with verified TLS; authenticated Redis TLS worked and
+anonymous requests were rejected. The sequential backend repeat passed
+(`ok=29 changed=0`).
+LLDAP runtime deployment passed (`ok=19 changed=8`) and its stable repeat passed
+(`ok=16 changed=0`). Native health, actual LDAPS certificate/hostname validation
+and the directory's active TLS PostgreSQL connections passed. Local syntax
+validation and 74 Python tests passed; no full-stack acceptance is implied.
+
+The operator selected one technical superadministrator (`svc-identity-admin`)
+shared by Ansible and the initial LLDAP operator login. It is typed `service`,
+has no MFA and is excluded from human SSO. Personal users are created manually in
+LLDAP; no initial human username/email is required in inventory. Dedicated
+reader/OpenClaw/Platform identities keep separate limited access. The controller's
+retained OpenBao root token remains an independent infrastructure credential.
+
+Live directory bootstrap passed after fixing duplicate membership of the native
+LLDAP administrator (`ok=4 changed=2`), followed by a stable repeat
+(`ok=4 changed=0`). The helper also passed fixture checks for preserved password
+rotation, removed memberships and intentional deletion. Service identities are
+bootstrapped once; Ansible does not restore centrally removed assignments.
+
+`identity.yml` now prepares native OpenBao human/service/enrollment mounts,
+TOTP enforcement, stable entryUUID aliases, metadata, role groups and OIDC
+registrations. Canonical API values are compared (LDAP lowercases userattr;
+the OIDC provider returns its effective issuer), yielding an unchanged configuration
+repeat. Only prepared human UUIDs may enter the human/enrollment mounts; their
+aliases are linked before publishing the login filter. Entities and identity
+groups carry no permission policies, preventing enrollment privilege leakage.
+Application OIDC clients use only their own allowlisted external role groups.
+
+Actual LDAPS authentication first failed because OpenBao's restricted SELinux
+domain denied outbound port 6360. Its owning role now labels that single port
+and permits only the required LDAPS egress, retaining Enforcing. Runtime
+configuration/verification passed (`ok=23 changed=3`). Native identity acceptance
+subsequently passed 21 checks for identity type separation, service login without
+MFA, restricted first TOTP enrollment, canonical identity continuity, post-MFA
+KV administration without PKI administration, and real OIDC authorization.
+The test helper's auth-envelope parsing was corrected before the successful run.
+
+`identity-edge.yml` deployed Grafana without a local administrator and the native
+HTTPS edge (`ok=49 changed=28`). Host-trusted HTTPS passed for OpenBao, the static
+login page, LLDAP and Grafana. `acceptance-identity-grafana.yml` passed 26 checks,
+including Grafana's real PKCE code exchange, a personal application session and
+native Viewer role mapping and denial of NetBox OIDC authorization without a
+NetBox role. Disposable directory users, received tokens and the
+Grafana mirror were removed by the successful test. These are native HTTP/API
+checks, not browser execution of the new static first-login page.
+Final sequential repeats passed: `identity.yml` (`ok=8 changed=0`) and
+`identity-edge.yml` (`ok=39 changed=0`). The preceding edge repeat applied the
+last static-page error-handling change (`changed=1`); it was not treated as a
+stable repeat. Final read-only health confirmed all seven deployed services
+active, SELinux Enforcing and trusted OpenBao/Grafana HTTPS responses; see
+`artifacts/infrabox-krg17/identity-health.json`.
+
+At the earlier browser checkpoint the controller did not trust the recreated
+appliance CA; browser acceptance was subsequently excluded. No browser TLS
+validation was bypassed. The earlier automatic approval rejection of old-test
+enumeration was resolved with a narrowly constrained read-only diagnostic.
+Two confirmed old synthetic service entities and their login leases were
+removed, with exact alias/UUID and absent-directory checks. Evidence is in
+`old-bao-probe-guards.json` and `old-bao-probe-cleanup.json`. Old Gitea/NetBox test
+mirrors left by a failed cleanup were also removed by exact IDs and names;
+see `application-probe-cleanup.json`.
+
+The earlier 77-test checkpoint preceded the application/service conversion
+recorded above. Browser acceptance was subsequently excluded by the operator.
+Application API acceptance subsequently passed as recorded above. The first
+`site.yml` reached Platform (`ok=297 changed=5`) and stopped because that role
+had relied on a host Git package absent on a clean VM. Git is now an explicit
+role dependency. The pinned Platform image built; its first management attempt
+then exposed LDAP-loader stdout mixed with helper JSON. The owning NetBox helper
+now isolates native informational output; the corrected Platform run is pending.
+Full-stack and disruptive acceptance remain incomplete.
+Earlier base health (`artifacts/infrabox-krg17/base-health.json`) confirmed actual
+verified OpenBao HTTPS, an unsealed server, authenticated certificate Agent,
+verified LDAPS and all five active base services. Disposable local fixture
+containers were removed after saving their sanitized results.
+
 ## KRG-9 OpenClaw discovery and NetBox enrichment — 2026-09-13
 
 Implemented and deployed to the authorized existing appliance `infrabox1`,

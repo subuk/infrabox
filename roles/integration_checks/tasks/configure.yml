@@ -21,6 +21,15 @@
   ansible.builtin.slurp:
     src: '{{ infrabox_config_root }}/monitoring/storage.json'
   register: integration_checks_expected_mount
+- name: Discover the existing monitoring network on a component-only rerun
+  ansible.builtin.command:
+    argv: [podman, network, inspect, infrabox]
+  register: integration_checks_network
+  changed_when: false
+  when: node_exporter_address is not defined
+- name: Select the monitoring address for the generated catalog
+  ansible.builtin.set_fact:
+    integration_checks_node_exporter_address: '{{ node_exporter_address if node_exporter_address is defined else (integration_checks_network.stdout | from_json)[0].subnets[0].gateway }}'
 - name: Generate staged catalog and rules
   ansible.builtin.command:
     argv: [python3, /usr/local/libexec/infrabox-monitoring/configure.py]
@@ -28,10 +37,11 @@
   vars:
     integration_checks_settings:
       output: '{{ infrabox_config_root }}/monitoring/staged'
-      probes_implementation: '{{ (lookup("ansible.builtin.file", role_path ~ "/files/worker.py") ~ lookup("ansible.builtin.file", role_path ~ "/files/netbox-probe.py") ~ lookup("ansible.builtin.file", role_path ~ "/files/openclaw-probe.mjs")) | hash("sha256") }}'
+      probes_implementation: '{{ (lookup("ansible.builtin.file", role_path ~ "/files/worker.py") ~ lookup("ansible.builtin.file", role_path ~ "/files/netbox-probe.py") ~ lookup("ansible.builtin.file", role_path ~ "/files/openclaw-probe.mjs") ~ lookup("ansible.builtin.file", role_path ~ "/files/mcp-probe-runtime.mjs")) | hash("sha256") }}'
       prometheus_configuration: '{{ lookup("ansible.builtin.file", playbook_dir ~ "/roles/prometheus/templates/prometheus.yml.j2") | hash("sha256") }}'
-      node_exporter_address: '{{ node_exporter_address }}'
+      node_exporter_address: '{{ integration_checks_node_exporter_address }}'
       domain: '{{ infrabox_domain }}'
+      internal_domain: '{{ infrabox_internal_domain }}'
       certificate_agent_address: '{{ openbao_agent_openbao_address | default("https://openbao." ~ infrabox_internal_domain ~ ":8200") }}'
       claw_host: '{{ openclaw_hostname | default("claw." ~ infrabox_domain) }}'
       ca: '{{ infrabox_root_ca_path }}'
@@ -39,6 +49,8 @@
       storage_source: '{{ (integration_checks_expected_mount.content | b64decode | from_json).filesystems[0].source }}'
       storage_mount: '{{ (integration_checks_expected_mount.content | b64decode | from_json).filesystems[0].target }}'
       netbox: '{{ openclaw_netbox_enabled | default(true) | bool }}'
+      platform: '{{ platform_enabled | default(false) | bool }}'
+      discovery: '{{ openclaw_discovery_enabled | default(platform_enabled | default(false)) | bool }}'
       scanner: '{{ openclaw_subnet_scan_enabled | default(true) | bool }}'
       canary: '{{ integration_checks_canary_enabled | bool }}'
       canary_keep: '{{ integration_checks_canary_keep | int }}'
@@ -60,8 +72,9 @@
       secrets_dir: '{{ infrabox_config_root }}/monitoring/secrets'
       workflow: /usr/local/libexec/infrabox-monitoring/canary.yml
       root_token: '{{ (lookup("ansible.builtin.file", playbook_dir ~ "/.secrets/" ~ inventory_hostname ~ "/openbao-init.json") | from_json).root_token }}'
-      gitea_password: '{{ gitea_admin_password }}'
-      grafana_password: '{{ grafana_admin_password }}'
+      admin_username: '{{ gitea_identity_admin_username | default("svc-identity-admin") }}'
+      gitea_password: '{{ lldap_admin_password }}'
+      monitor_password: '{{ identity_monitor_password }}'
   register: integration_checks_credentials
   changed_when: integration_checks_credentials.rc == 0 and (integration_checks_credentials.stdout | from_json).changed
   failed_when: false
@@ -104,5 +117,5 @@
     src: '{{ item }}.j2'
     dest: '/etc/systemd/system/{{ item }}'
     mode: '0644'
-  loop: [infrabox-checks.service, infrabox-checks.timer, infrabox-canary.service, infrabox-canary.timer, infrabox-health.service]
+  loop: [infrabox-checks.service, infrabox-checks.timer, infrabox-mcp-check.service, infrabox-mcp-check.timer, infrabox-mcp-runtime.service, infrabox-canary.service, infrabox-canary.timer, infrabox-health.service]
   register: integration_checks_units

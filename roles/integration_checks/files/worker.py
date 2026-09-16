@@ -10,6 +10,7 @@ import http.client
 import json
 import os
 from pathlib import Path
+import selectors
 import signal
 import socket
 import ssl
@@ -29,6 +30,13 @@ class ProbeDeferred(Exception): pass
 class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self,*_): raise ProbeError('invalid_response')
 
+def check_lane(check):
+    adapter=check['adapter']
+    if adapter in ('native','derived'):return None
+    if adapter in ('canary','retention'):return 'canary'
+    if adapter=='mcp':return 'mcp'
+    return 'core'
+
 def request(url,ca,token=None,data=None,method=None,limit=1024*1024):
     headers={'Content-Type':'application/json'}
     if token: headers['Authorization']=token
@@ -41,28 +49,88 @@ def request(url,ca,token=None,data=None,method=None,limit=1024*1024):
     except HTTPError as e:raise ProbeError('auth' if e.code==401 else 'permission' if e.code==403 else 'unavailable') from None
     except URLError as e:raise ProbeError('tls' if isinstance(e.reason,ssl.SSLError) else 'dns' if isinstance(e.reason,socket.gaierror) else 'connect') from None
 
+def capture_command(argv,stdin=None,timeout=15,limit=1024*1024):
+    """Drain both pipes concurrently, bounding output, input writes and exit time."""
+    data=memoryview(stdin.encode() if stdin is not None else b'');offset=0
+    output={'stdout':bytearray(),'stderr':bytearray()};finished=False
+    p=subprocess.Popen(argv,stdin=subprocess.PIPE if stdin is not None else subprocess.DEVNULL,
+                       stdout=subprocess.PIPE,stderr=subprocess.PIPE,start_new_session=True,bufsize=0)
+    deadline=time.monotonic()+timeout
+    try:
+        with selectors.DefaultSelector() as selector:
+            for name,stream in [('stdout',p.stdout),('stderr',p.stderr)]:
+                os.set_blocking(stream.fileno(),False);selector.register(stream,selectors.EVENT_READ,name)
+            if p.stdin:
+                if data:
+                    os.set_blocking(p.stdin.fileno(),False);selector.register(p.stdin,selectors.EVENT_WRITE,'stdin')
+                else:p.stdin.close()
+            while selector.get_map():
+                remaining=deadline-time.monotonic()
+                if remaining<=0:raise subprocess.TimeoutExpired(argv,timeout)
+                for key,_ in selector.select(remaining):
+                    if key.data=='stdin':
+                        try:offset+=os.write(key.fd,data[offset:offset+4096])
+                        except BrokenPipeError:offset=len(data)
+                        except BlockingIOError:continue
+                        if offset==len(data):selector.unregister(key.fileobj);key.fileobj.close()
+                    else:
+                        try:chunk=os.read(key.fd,65536)
+                        except BlockingIOError:continue
+                        if not chunk:selector.unregister(key.fileobj);key.fileobj.close();continue
+                        if len(output[key.data])+len(chunk)>limit:raise ProbeError('invalid_response')
+                        output[key.data].extend(chunk)
+            p.wait(timeout=max(0,deadline-time.monotonic()))
+            finished=True
+        return p.returncode,bytes(output['stdout']),bytes(output['stderr'])
+    except subprocess.TimeoutExpired as error:
+        error.output=bytes(output['stdout']);error.stderr=bytes(output['stderr'])
+        raise
+    finally:
+        if not finished:
+            try:os.killpg(p.pid,signal.SIGKILL)
+            except ProcessLookupError:pass
+            p.wait(timeout=5)
+        for stream in (p.stdin,p.stdout,p.stderr):
+            if stream and not stream.closed:stream.close()
+
 def run(argv,stdin=None,timeout=15):
-    with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
-        p=subprocess.Popen(argv,stdin=subprocess.PIPE if stdin else subprocess.DEVNULL,stdout=out,stderr=err,start_new_session=True)
-        try:p.communicate(stdin.encode() if stdin else None,timeout=timeout)
-        except subprocess.TimeoutExpired:
-            os.killpg(p.pid,signal.SIGKILL);p.wait()
-            # Keep only fixed diagnostic fields, never command arguments or raw output.
-            out.seek(0);body=out.read(4096)
-            try:reported=json.loads(body)
-            except ValueError:reported={}
-            if not isinstance(reported,dict):reported={}
-            mode=argv[-1] if '/opt/infrabox/monitoring/openclaw-probe.mjs' in argv and argv[-1] in ('mcp','vault','ready','diagnostics') else 'fixed_command'
-            atomic(STATE/'last-command-timeout.json',json.dumps({'mode':mode,'timeout_seconds':timeout,
-                'result_reported':bool(reported),'reported_success':reported.get('success') is True,
-                'stderr_bytes':err.seek(0,2),'observed_at':time.time()}),0o600)
-            raise ProbeError('timeout') from None
-        out.seek(0);body=out.read(1024*1024+1)
-        if len(body)>1024*1024:raise ProbeError('invalid_response')
-        if p.returncode:
-            try:raise ProbeError(json.loads(body).get('reason','unavailable'))
-            except (ValueError,AttributeError):raise ProbeError('unavailable') from None
-        return body.decode()
+    # Pinned Podman supports attached exec without database session bookkeeping.
+    # Frequent concurrent probes need no session API; retain the same container
+    # user, stdin, exit status and runtime confinement while avoiding lock churn.
+    if argv[:2]==['podman','exec']:
+        argv=[*argv[:2],'--no-session',*argv[2:]]
+    try:rc,body,stderr=capture_command(argv,stdin,timeout)
+    except subprocess.TimeoutExpired as error:
+        # Keep only fixed diagnostic fields, never command arguments or raw output.
+        try:reported=json.loads(error.output[:4096])
+        except ValueError:reported={}
+        if not isinstance(reported,dict):reported={}
+        mode=argv[-1] if '/opt/infrabox/monitoring/openclaw-probe.mjs' in argv and argv[-1] in ('mcp','vault','ready','diagnostics') else 'fixed_command'
+        phase=probe_phase(error.stderr[:4096]) if mode=='mcp' else None
+        atomic(STATE/'last-command-timeout.json',json.dumps({'mode':mode,'timeout_seconds':timeout,
+            'result_reported':bool(reported),'reported_success':reported.get('success') is True,
+            'probe_phase':phase,'stderr_bytes':len(error.stderr),'observed_at':time.time()}),0o600)
+        raise ProbeError('timeout') from None
+    if rc:
+        if '/opt/infrabox/monitoring/openclaw-probe.mjs' in argv and argv[-1]=='mcp':
+            atomic(STATE/'last-mcp-failure.json',json.dumps({'probe_phase':probe_phase(stderr),
+                'observed_at':time.time()}),0o600)
+        try:raise ProbeError(json.loads(body).get('reason','unavailable'))
+        except (ValueError,AttributeError):raise ProbeError('unavailable') from None
+    return body.decode()
+
+def probe_phase(stderr):
+    """Retain only the fixed phase/timing protocol, never native diagnostic text."""
+    last=None
+    for line in stderr.decode(errors='replace').splitlines():
+        try:value=json.loads(line)
+        except ValueError:continue
+        if not isinstance(value,dict) or set(value)!={'infrabox_probe_phase','elapsed_ms'}:continue
+        if value['infrabox_probe_phase'] not in ('import_runtime','create_runtime','load_policy','read','dispose'):continue
+        elapsed=value['elapsed_ms']
+        if type(elapsed) is not int or not 0<=elapsed<=120000:continue
+        last=value
+    return last
 
 def atomic(path,value,mode=0o644):
     fd,name=tempfile.mkstemp(dir=path.parent,prefix='.snapshot-')
@@ -80,7 +148,7 @@ def retention_candidates(runs,now,keep=12,max_age=3600):
 
 def gitea(c,path='',data=None,method=None):
     token=(BASE/'secrets/gitea-token').read_text().strip()
-    b=request('https://git.'+c['domain']+'/api/v1/repos/infrabox-monitor/canary'+path,c['ca'],'token '+token,data,method)
+    b=request('https://git.'+c['domain']+'/api/v1/repos/svc-monitor/canary'+path,c['ca'],'token '+token,data,method)
     return json.loads(b) if b else {}
 
 def canary(c,cleanup=False):
@@ -137,8 +205,8 @@ def probe(ch,c):
             finally:connection.close()
     elif adapter=='https':
         svc=ch['service'];host=c['claw_host'] if svc=='claw' else svc+'.'+c['domain']
-        paths={'git':'/user/login','netbox':'/login/','grafana':'/login','claw':'/','vault':'/ui/'}
-        markers={'git':('gitea','infrabox git'),'netbox':('netbox',),'grafana':('grafana',),'claw':('openclaw',),'vault':('openbao',)}
+        paths={'git':'/user/login','netbox':'/login/','grafana':'/login','claw':'/','vault':'/ui/','ldap':'/'}
+        markers={'git':('gitea','infrabox git'),'netbox':('netbox',),'grafana':('grafana',),'claw':('openclaw',),'vault':('openbao',),'ldap':('lldap',)}
         b=request('https://'+host+paths[svc],c['ca'],limit=2*1024*1024).decode(errors='replace').lower()
         if not any(m in b for m in markers[svc]):raise ProbeError('invalid_response')
         with socket.create_connection((host,443),timeout=10) as sock:
@@ -146,17 +214,25 @@ def probe(ch,c):
                 expiry=ssl.cert_time_to_seconds(tls.getpeercert()['notAfter'])
         metrics=[f'infrabox_certificate_remaining_seconds{{service="{svc}"}} {expiry-time.time()}']
     elif adapter in ('mcp','vault','diagnostics','ready'):
-        # MCP has its own 20s runtime deadline and a 10s read deadline. Allow
+        # MCP has its own 60s runtime deadline and a 10s read deadline. Allow
         # bounded Podman process-start/teardown overhead outside that budget.
-        d=json.loads(run(['podman','exec','openclaw','node','/opt/infrabox/monitoring/openclaw-probe.mjs',adapter],timeout=40 if adapter=='mcp' else 25))
+        # Cache only Node's compiled immutable modules in the container tmpfs.
+        # Every invocation still loads current policy and performs a real read.
+        cache=['--env','NODE_COMPILE_CACHE=/tmp/infrabox-monitoring-compile-cache'] if adapter=='mcp' else []
+        d=json.loads(run(['podman','exec',*cache,'openclaw','node','/opt/infrabox/monitoring/openclaw-probe.mjs',adapter],timeout=75 if adapter=='mcp' else 25))
         if d.get('success') is not True:raise ProbeError(d.get('reason','invalid_response'))
         metrics=d.get('metrics',[])
     elif adapter=='runner':run(['podman','exec','gitea-runner','wget','-q','-O','-','http://127.0.0.1:9101/readyz'])
     elif adapter=='bao_metrics':
-        token=(BASE/'secrets/bao-token').read_text().strip()
-        # Renew only this read-only telemetry identity; never rotate on a probe.
-        request('https://vault.'+c['domain']+'/v1/auth/token/renew-self',c['ca'],'Bearer '+token,{},'POST')
-        text=request('https://vault.'+c['domain']+'/v1/sys/metrics?format=prometheus',c['ca'],'Bearer '+token).decode()
+        credential=json.loads((BASE/'secrets/ldap.json').read_text())
+        base='https://vault.'+c['domain']+'/v1/'
+        login=json.loads(request(base+'auth/ldap-service/login/'+credential['username'],c['ca'],data={'password':credential['password']},method='POST'))['auth']
+        token=login['client_token']
+        try:
+            if set(login['policies'])!={'infrabox-service','infrabox-monitoring'}:raise ProbeError('permission')
+            text=request(base+'sys/metrics?format=prometheus',c['ca'],'Bearer '+token).decode()
+        finally:
+            request(base+'auth/token/revoke-self',c['ca'],'Bearer '+token,{},'POST')
         metrics=[line for line in text.splitlines() if re.match(r'^vault_(core_unsealed|raft_commitTime|raft_apply|runtime_alloc_bytes)([{_ ]|$)',line)]
         if not metrics:raise ProbeError('invalid_response')
     elif adapter=='gitea_metrics':
@@ -188,6 +264,30 @@ SELECT 'infrabox_postgresql_lock_wait_seconds ' || coalesce(max(extract(epoch FR
         token=(BASE/'secrets/grafana-token').read_text().strip()
         d=json.loads(request('http://127.0.0.1:3001/api/datasources/proxy/uid/infrabox-prometheus/api/v1/query?query=up%7Bjob%3D%22prometheus%22%7D',c['ca'],'Bearer '+token))
         if d.get('status')!='success' or not d['data']['result'] or float(d['data']['result'][0]['value'][1])!=1:raise ProbeError('invalid_response')
+    elif adapter=='identity_ldap':
+        run(['podman','exec','lldap','/app/lldap','healthcheck','--config-file','/etc/lldap/lldap.toml'])
+        sql="SELECT count(*)>0 AND bool_and(s.ssl) FROM pg_stat_activity a JOIN pg_stat_ssl s USING(pid) WHERE a.usename='lldap' AND a.datname='lldap';"
+        if run(['podman','exec','--user','postgres','postgresql','psql','-XAt','-U','postgres','-c',sql]).strip()!='t':raise ProbeError('tls')
+        run(['openssl','s_client','-connect','127.0.0.1:16360','-servername','lldap.'+c['internal_domain'],
+             '-verify_hostname','lldap.'+c['internal_domain'],'-verify_return_error','-CAfile',c['ca']])
+    elif adapter=='identity_oidc':
+        issuer='https://vault.'+c['domain']+'/v1/identity/oidc/provider/infrabox'
+        d=json.loads(request(issuer+'/.well-known/openid-configuration',c['ca']))
+        if d.get('issuer')!=issuer or d.get('token_endpoint')!=issuer+'/token' or d.get('jwks_uri')!=issuer+'/.well-known/keys':raise ProbeError('invalid_response')
+        if not json.loads(request(d['jwks_uri'],c['ca'])).get('keys'):raise ProbeError('invalid_response')
+    elif adapter=='identity_clients':
+        for host,path,marker in [('git','/user/login','/user/oauth2/openbao'),('netbox','/login/','/oauth/login/oidc/'),('grafana','/login','generic_oauth')]:
+            html=request('https://'+host+'.'+c['domain']+path,c['ca'],limit=2*1024*1024).decode()
+            if marker not in html:raise ProbeError('invalid_response')
+    elif adapter=='identity_files':
+        files=['openclaw/secrets/vault-token','monitoring/secrets/grafana-token','monitoring/secrets/ldap.json']
+        if c['netbox']:files.append('openclaw/secrets/netbox-token')
+        if c.get('discovery'):files.append('openclaw/secrets/discovery-token')
+        if c.get('platform'):files.append('platform/secrets/bao-token')
+        if c['canary']:files.append('monitoring/secrets/gitea-token')
+        for name in files:
+            file=Path('/etc/infrabox')/name
+            if not file.is_file() or file.stat().st_size==0 or file.stat().st_mode & 0o077:raise ProbeError('permission')
     elif adapter=='host':
         if run(['getenforce']).strip()!='Enforcing':raise ProbeError('unavailable')
         run(['systemctl','is-active','chronyd','firewalld','openbao-agent-secret-id.timer','openclaw-token-renew.timer'])
@@ -222,7 +322,7 @@ def execute(ch,c,now):
     return cid,reason
 
 def main():
-    p=argparse.ArgumentParser();p.add_argument('--force',action='append',default=[]);p.add_argument('--lane',choices=['core','canary'],default='core');args=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument('--force',action='append',default=[]);p.add_argument('--lane',choices=['core','canary','mcp'],default='core');args=p.parse_args()
     catalog=json.loads((BASE/'catalog.json').read_text());c={**catalog['settings'],'generation':catalog['generation']}
     known={x['id'] for x in catalog['checks']}
     if set(args.force)-known:raise ValueError('Unknown fixed check')
@@ -231,21 +331,21 @@ def main():
         except BlockingIOError:return
         now=time.time();due=[]
         for ch in catalog['checks']:
-            if ch['adapter'] in ('native','derived'):continue
-            if (ch['adapter'] in ('canary','retention')) != (args.lane=='canary'):continue
+            if check_lane(ch)!=args.lane:continue
             statefile=STATE/(ch['id']+'.json')
             try:last=json.loads(statefile.read_text())
             except (OSError,ValueError):last={}
             age=now-last.get('completed',0)
             if ch['id'] in args.force or last.get('generation')!=catalog['generation'] or age<0 or age>=ch['interval']-5:due.append(ch)
-        # Canary runs independently: a queued workflow must not stall basic checks.
-        with ThreadPoolExecutor(max_workers=1 if args.lane=='canary' else 4) as pool:
+        # Slow MCP materialization and queued workflows cannot hold the core lock.
+        heartbeat='worker' if args.lane=='core' else args.lane+'_worker'
+        with ThreadPoolExecutor(max_workers=4 if args.lane=='core' else 1) as pool:
             if any(ch['adapter'] in ('postgresql','redis','netbox') for ch in due):
                 # Share one runtime startup within this cycle, never cached across observations.
                 c['_netbox_future']=pool.submit(netbox_dependencies)
             for result in as_completed([pool.submit(execute,ch,c,now) for ch in due]):
                 result.result()
-                atomic(TEXT/(args.lane+'.prom'),f'infrabox_{"worker" if args.lane=="core" else "canary_worker"}_heartbeat_timestamp_seconds {time.time()}\n')
-        atomic(TEXT/(args.lane+'.prom'),f'infrabox_{"worker" if args.lane=="core" else "canary_worker"}_heartbeat_timestamp_seconds {time.time()}\n')
+                atomic(TEXT/(args.lane+'.prom'),f'infrabox_{heartbeat}_heartbeat_timestamp_seconds {time.time()}\n')
+        atomic(TEXT/(args.lane+'.prom'),f'infrabox_{heartbeat}_heartbeat_timestamp_seconds {time.time()}\n')
 
 if __name__=='__main__':main()

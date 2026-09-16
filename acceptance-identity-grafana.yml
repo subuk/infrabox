@@ -1,0 +1,4 @@
+---
+- ansible.builtin.import_playbook: acceptance-identity.yml
+  vars:
+    identity_acceptance_grafana: true

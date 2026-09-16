@@ -18,14 +18,17 @@ For example, add the following non-secret settings to the selected inventory:
 platform_enabled: true
 platform_source: https://github.com/subuk/infrabox-platform.git
 platform_ref: master
-platform_operators: [operator]
 platform_known_hosts_file: /path/to/verified_known_hosts
 ```
 
-`platform_operators` names existing Gitea users. Core creates the Operators team
-with Code Read / Actions Write; it does not expose infrastructure credentials to
-that team. Site administrators retain administrative authority. Only the separate
-provisioning identity may update trusted execution code.
+LLDAP group `infrabox:gitea:<organization>:operator` controls Operators membership.
+Native LDAP/OIDC maps add and remove membership on login; Ansible never restores
+an old per-user list. Core configures Operators with Code Read / Actions Write,
+Developers with Code Write / Actions Read and Readers with Code Read / Actions
+Read. Project admins map to Owners; only the global admin group grants instance
+administration. Trusted execution-branch pushes remain restricted to the single
+central technical administrator `svc-identity-admin`; its provisioning PAT stays
+on the controller/host management path and never reaches a runtime runner.
 
 For development, set `platform_source` to the controller's local
 `infrabox-platform` directory and `platform_ref` to a committed branch/tag/SHA.
@@ -117,7 +120,9 @@ normal acceptance uses the discovery command below.
 ```
 
 The gate requires the temporary `compatibility.yml` workflow in the selected
-Platform revision. It saves a sanitized result, run URL and checked SHA to
+Platform revision. It checks for that file before dispatch; a missing fixture
+is not a successful test. Dispatch errors retain an uncertain status and never
+trigger an automatic second launch. It saves a sanitized result, run URL and checked SHA to
 `artifacts/<inventory_hostname>/platform-compatibility.json`. It does not access
 a managed target or require its SSH key. Component verification also checks
 actual scoped OpenBao/NetBox access and network/UID/SELinux/socket isolation.

@@ -1,0 +1,35 @@
+---
+- name: Create protected identity directory
+  ansible.builtin.file:
+    path: '{{ infrabox_config_root }}/identity'
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+  tags: [install, configure]
+- name: Install native OpenBao identity configuration helper
+  ansible.builtin.copy:
+    src: configure.py
+    dest: '{{ infrabox_config_root }}/identity/openbao-configure.py'
+    owner: root
+    group: root
+    mode: '0700'
+  tags: [install, configure]
+- name: Configure authentication and native first-login identities
+  ansible.builtin.command:
+    argv: [python3, '{{ infrabox_config_root }}/identity/openbao-configure.py']
+    stdin: '{{ identity_openbao_parameters | to_json }}'
+  register: identity_openbao_configuration
+  changed_when: identity_openbao_configuration.rc == 0 and (identity_openbao_configuration.stdout | from_json).changed
+  failed_when: false
+  no_log: true
+  tags: [configure]
+- name: Report sanitized identity configuration failure
+  ansible.builtin.fail:
+    msg: '{{ identity_openbao_configuration.stderr }}'
+  when: identity_openbao_configuration.rc != 0
+  tags: [configure]
+- name: Report authentication mode and changed configuration paths
+  ansible.builtin.debug:
+    msg: '{{ identity_openbao_configuration.stdout | from_json }}'
+  tags: [configure]

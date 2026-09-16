@@ -115,9 +115,19 @@ class Manager:
     def netbox(self, action, token=''):
         if action in ('reconcile', 'create'):
             self.pause()
-        config = {'action': action, 'username': 'infrabox-platform',
-                  'permission_name': 'InfraBox Platform read only', 'description': 'InfraBox Platform inventory', 'token': token}
-        code = Path(__file__).with_name('netbox-identity.py').read_text()
+        if action == 'create':
+            with self.opener.open(Request(self.c['netbox_url'] + '/api/users/tokens/provision/',
+                    data=json.dumps({'username': 'svc-platform', 'password': self.c['service_password'],
+                                     'description': 'InfraBox Platform inventory', 'write_enabled': False, 'version': 2}).encode(),
+                    headers={'Content-Type': 'application/json'}), timeout=30) as response:
+                body = json.load(response)
+                if response.status != 201 or body.get('version') != 2:
+                    raise ManagementError('Native Platform token provisioning failed')
+                self.changed = True
+                return {'changed': True, 'token': 'nbt_' + body['key'] + '.' + body['token']}
+        config = {'action': action, 'username': 'svc-platform', 'password': self.c['service_password'],
+                  'role': 'reader', 'description': 'InfraBox Platform inventory', 'token': token}
+        code = Path('/usr/local/libexec/infrabox/netbox-service-identity.py').read_text()
         output = command(['podman', 'exec', '-i', '--workdir', '/opt/netbox/netbox', 'netbox',
             '/opt/netbox/venv/bin/python', '-c',
             'import os,json,sys,django,contextlib,io\n'
@@ -183,22 +193,21 @@ class Manager:
         record = self.kv('core/platform/gitea')
         if record:
             try:
-                if self.api('/user', auth='token ' + record['token'])['login'] == user:
+                info = next((t for t in self.api('/users/' + user + '/tokens?limit=50') if t['id'] == record.get('tokenId')), None)
+                if (info and set(info.get('scopes', [])) == {'read:user', 'write:repository'}
+                        and self.api('/user', auth='token ' + record['token'])['login'] == user):
                     return record['token']
             except ManagementError:
                 pass
-        password = secrets.token_urlsafe(40)
-        data = {'username': user, 'email': user + '@localhost.invalid', 'password': password,
-                'must_change_password': False, 'admin': False, 'allow_create_organization': False,
-                'allow_git_hook': False, 'allow_import_local': False}
-        if self.api('/users/' + user, missing=True) is None:
-            self.api('/admin/users', data, 'POST')
-        else:
-            self.api('/admin/users/' + user, {**data, 'source_id': 0, 'login_name': user}, 'PATCH')
-        auth = 'Basic ' + base64.b64encode((user + ':' + password).encode()).decode()
-        token = self.api('/users/' + user + '/tokens', {'name': 'platform-' + secrets.token_hex(6),
-            'scopes': ['read:user', 'write:repository']}, 'POST', auth=auth)['sha1']
-        self.kv('core/platform/gitea', {'token': token})
+        if user != self.c['admin_user']:
+            raise ManagementError('Platform provisioning uses the single central technical administrator')
+        auth = self.admin
+        created = self.api('/users/' + user + '/tokens', {'name': 'platform-' + secrets.token_hex(6),
+            'scopes': ['read:user', 'write:repository']}, 'POST', auth=auth)
+        token = created['sha1']
+        if self.api('/user', auth='token ' + token)['login'] != user:
+            raise ManagementError('Native provisioner token identity mismatch')
+        self.kv('core/platform/gitea', {'token': token, 'tokenId': created['id']})
         return token
 
     def repository(self):
@@ -216,23 +225,23 @@ class Manager:
         if any(repo.get(k) != v for k, v in desired.items()):
             self.api(self.repo, desired, 'PATCH'); self.changed = True
         teams = self.api(org + '/teams?limit=50')
-        team = next((t for t in teams if t['name'] == 'Operators'), None)
-        settings = {'name': 'Operators', 'permission': 'read',
-                    'units_map': {'repo.code': 'read', 'repo.actions': 'write'},
-                    'can_create_org_repo': False, 'includes_all_repositories': False}
-        if team is None:
-            team = self.api(org + '/teams', settings, 'POST'); self.changed = True
-        # Gitea reports permission=none for granular units_map teams.
-        elif any(team.get(k) != v for k, v in {**settings, 'permission': 'none'}.items()):
-            team = self.api('/teams/' + str(team['id']), settings, 'PATCH'); self.changed = True
-        team_path = '/teams/' + str(team['id'])
-        if self.api(team_path + '/repos/' + c['organization'] + '/' + c['repository'], missing=True) is None:
-            self.api(team_path + '/repos/' + c['organization'] + '/' + c['repository'], method='PUT'); self.changed = True
-        members = {m['login'] for m in self.api(team_path + '/members')}
-        for user in set(c['operators']) - members:
-            self.api(team_path + '/members/' + user, method='PUT'); self.changed = True
-        for user in members - set(c['operators']):
-            self.api(team_path + '/members/' + user, method='DELETE'); self.changed = True
+        # Ansible owns team permissions and repository associations. Native
+        # LDAP/OIDC maps own membership, including removal at the next login.
+        for name, code, actions, all_repositories in (
+                ('Developers', 'write', 'read', True),
+                ('Readers', 'read', 'read', True),
+                ('Operators', 'read', 'write', False)):
+            team = next((t for t in teams if t['name'] == name), None)
+            settings = {'name': name, 'permission': 'read',
+                        'units_map': {'repo.code': code, 'repo.actions': actions},
+                        'can_create_org_repo': False, 'includes_all_repositories': all_repositories}
+            if team is None:
+                team = self.api(org + '/teams', settings, 'POST'); self.changed = True
+            elif any(team.get(k) != v for k, v in {**settings, 'permission': 'none'}.items()):
+                team = self.api('/teams/' + str(team['id']), settings, 'PATCH'); self.changed = True
+            team_path = '/teams/' + str(team['id'])
+            if self.api(team_path + '/repos/' + c['organization'] + '/' + c['repository'], missing=True) is None:
+                self.api(team_path + '/repos/' + c['organization'] + '/' + c['repository'], method='PUT'); self.changed = True
         desired = {'rule_name': c['branch'], 'enable_push': True, 'enable_push_whitelist': True,
                    'push_whitelist_usernames': [c['provisioner']], 'enable_force_push': True,
                    'enable_force_push_allowlist': True, 'force_push_allowlist_usernames': [c['provisioner']]}

@@ -29,6 +29,7 @@ def main():
         if Path(config).exists():data=health.load_snapshot(config)[0]
         else:data={'status':'unknown','coverage_complete':False,'issues':[],'bootstrap':True}
         baseline.parent.mkdir(parents=True,exist_ok=True,mode=0o700);baseline.write_text(json.dumps(data));baseline.chmod(0o600);return
+    from worker import check_lane
     before=json.loads(baseline.read_text()) if baseline.exists() else {'bootstrap':True,'issues':[]}
     catalog=json.loads(Path(config).read_text());components=DEPENDENCIES[args.component]
     affected=[c for c in catalog['checks'] if components is None or c['component'] in components]
@@ -36,8 +37,8 @@ def main():
     completion=time.time();deadline=time.monotonic()+args.timeout;next_probe=0;attempts=0;reason='insufficient_fresh_observations';state='inconclusive';running=[]
     while time.monotonic()<deadline:
         if time.monotonic()>=next_probe and attempts<max(3, min(10, args.timeout // 60)):
-            for lane in ['core','canary']:
-                chosen=[c['id'] for c in affected if c['adapter'] not in ('native','derived') and (c['adapter'] in ('canary','retention'))==(lane=='canary')]
+            for lane in ['core','canary','mcp']:
+                chosen=[c['id'] for c in affected if check_lane(c)==lane]
                 if chosen:
                     command=['python3','/usr/local/libexec/infrabox-monitoring/worker.py','--lane',lane]
                     for cid in chosen:command+=['--force',cid]

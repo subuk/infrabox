@@ -4,6 +4,13 @@
     name: firewalld
     enabled: true
     state: started
+- name: Wait for firewalld API readiness
+  ansible.builtin.command: firewall-cmd --state
+  register: firewalld_ready
+  changed_when: false
+  retries: 15
+  delay: 2
+  until: firewalld_ready.rc == 0 and firewalld_ready.stdout | trim == 'running'
 - name: Apply public port rules to running firewall
   ansible.posix.firewalld:
     zone: '{{ firewalld_zone }}'

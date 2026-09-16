@@ -7,10 +7,10 @@ It uses a dedicated trusted runner and native NetBox Config Context/Ansible patt
 implementation and live acceptance status are tracked in IMPLEMENTATION_STATUS.md.
 
 InfraBox deploys a single-node AlmaLinux 10 appliance through Ansible and Podman
-Quadlet. The implementation contract is [InfraBox_plan.md](InfraBox_plan.md);
-[IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) records the completed
-development-VM acceptance checks. The MVP is implemented and verified on the
-development host.
+Quadlet. The current identity implementation contract is maintained in
+[Linear KRG-17](https://linear.app/krglv/document/krg-17-lldap-openbao-identity-implementation-plan-for-codex-db5d9d3c2c28).
+[IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) distinguishes current-target
+checks from historical development-VM acceptance.
 
 For AI-assisted bootstrap and maintenance, see [AGENTS.md](AGENTS.md) for
 repository instructions, deployment workflow, and required validation.
@@ -52,7 +52,7 @@ all:
 
 `infrabox1` is an example inventory alias, not a DNS name. Keeping that alias
 matches the supplied secret generator and command examples. If you rename it,
-update the generator's output directory and the `-e @.secrets/.../inputs.json`
+pass `--inventory-hostname <alias>` to the generator and update the `-e @.secrets/.../inputs.json`
 paths below. Initialization records and exported artifacts are stored under
 `.secrets/<inventory_hostname>/` and `artifacts/<inventory_hostname>/`.
 
@@ -99,6 +99,62 @@ inside private directories. Existing values are preserved. `.secrets/` is ignore
 by Git. Protect these files and never print their contents in logs. Initialization
 later writes `.secrets/infrabox1/openbao-init.json`, including the retained root
 token and recovery shares. OpenBao Agent receives only its dedicated AppRole.
+
+For a separate fresh deployment, pass `--inventory-hostname <inventory alias>`
+to the generator. New files contain infrastructure and central-directory
+bootstrap inputs, without application-local administrator passwords. Existing
+passwords are preserved; only missing inputs are added. KRG-17's central identity
+flow is deployed; see IMPLEMENTATION_STATUS.md for completed checks and remaining
+acceptance on the current appliance.
+
+The new directory stage uses `lldap.yml` after PKI/certificate Agent and
+PostgreSQL. `identity-directory.yml` applies the role catalog and technical
+identities once. There is one technical superadministrator, `svc-identity-admin`:
+Ansible uses its protected `lldap_admin_password`, and an operator can use the
+same account in LLDAP to create a personal account. Set that personal account's
+`infraboxIdentityType` to `human` and assign the required `infrabox:*` role groups.
+The shared administrator is typed `service`; it has no MFA and cannot enter human
+SSO. Dedicated reader, OpenClaw, Platform and monitoring identities retain limited roles.
+Grafana also authenticates this same technical administrator through a narrowly
+filtered native LDAP path. Its built-in local-password backend stays disabled.
+Keeping that central technical administrator satisfies Grafana's native
+last-administrator safeguard and permits personal OIDC administrator demotion.
+No initial human name, email or password is required in inventory.
+
+`identity.yml` configures the authentication infrastructure; it is not needed
+when adding a human or editing their profile. Human LDAP login creates the OpenBao
+identity automatically, keyed by the immutable LDAP `entryUUID`. Logins and role
+groups come from LDAP. Mandatory MFA is disabled by operator choice; existing
+TOTP secrets are retained but enrollment is no longer part of login.
+
+Open `https://vault.<domain>/login/` or begin OIDC login from an application.
+On first login, provide your email and display name in the profile form. These
+values belong to your OpenBao profile, independently of LLDAP's profile. Use
+"Изменить профиль" on the login page to update them later. Users may read/update
+only their own entity metadata; policies, aliases, entity names, disabled state
+and other users are inaccessible. Username and role claims never use writable
+profile fields. Email is self-declared (`email_verified=false`); automatic Gitea
+account linking remains disabled. Ansible does not overwrite user-owned profiles.
+
+The retained OpenBao root token remains on the controller for infrastructure
+management. Normal sign-in and profile changes use the user's own finite token;
+no root token or additional identity service is deployed. LLDAP is exposed at
+`https://ldap.<domain>/`. Trust the public CA exported to
+`artifacts/<inventory alias>/root-ca.crt` before browser testing. The login page
+keeps the finite human token in the current browser tab's session storage;
+passwords are cleared after the login request. Signing out revokes the OpenBao
+session; application sessions retain their own finite lifetime.
+Role grants/removals are applied at the next native login. Existing application
+sessions, PATs, SSH keys and NetBox tokens have separate lifetimes; group removal
+is not token revocation. See the [identity recovery runbook](docs/runbooks/services.md#central-identity).
+`identity_gitea_organizations` optionally lists managed Gitea organizations; its
+default is the configured Platform organization. The shared role catalog, OIDC
+claims, service LDAP maps and native Developers/Readers teams use this list.
+Operators and OpenClawDiscovery remain restricted to the Platform execution repository.
+
+After rotating a service bootstrap or bind-reader password, update its protected
+controller input; Ansible does not repair access by resetting an existing LDAP
+password. Personal passwords are managed in LLDAP.
 
 Verify the VM's SSH host key before deployment. Host key checking remains enabled.
 Commands below assume your normal known-hosts file contains the correct key.
@@ -158,7 +214,8 @@ For an established appliance, deploy or repair the full stack with:
 .venv/bin/ansible-playbook verify.yml -T 60 -e @.secrets/infrabox1/inputs.json
 ```
 
-`site.yml` applies foundation, expiry recovery, PKI, databases, applications,
+`site.yml` applies foundation, expiry recovery, PKI, databases, LLDAP, central
+identity, the initial HTTPS edge and applications,
 HTTPS proxy, monitoring, and runner, then verifies the final state. Component
 playbooks remain available for targeted changes. No initialization is automatic.
 
@@ -171,12 +228,13 @@ Links follow the same effective hostnames as `nginx_upstreams`, including
 `openclaw_hostname`; the page does not check service health. Its responsive
 layout uses embedded CSS and SVG, with no JavaScript or external assets.
 
-| Service | Address | Local administrator |
+| Service | Address | Administration |
 | --- | --- | --- |
-| Gitea | https://git.infrabox.example.com | `admin` |
-| NetBox | https://netbox.infrabox.example.com | `admin` |
-| Grafana | https://grafana.infrabox.example.com | `admin` |
-| OpenBao | https://vault.infrabox.example.com | retained controller root token |
+| Gitea | https://git.infrabox.example.com | central `infrabox:gitea:admin` role |
+| NetBox | https://netbox.infrabox.example.com | human `infrabox:netbox:admin` role through MFA/OIDC |
+| Grafana | https://grafana.infrabox.example.com | human `infrabox:grafana:admin` role through MFA/OIDC |
+| OpenBao | https://vault.infrabox.example.com | human KV admin; controller root for infrastructure repair |
+| LLDAP | https://ldap.infrabox.example.com | `svc-identity-admin` for initial personal-account creation |
 
 The nginx role installs the static page at
 `/usr/share/nginx/html/infrabox/index.html` and adds the main-domain vhost.
@@ -265,6 +323,13 @@ No automatic OS upgrade is run.
 ```
 
 ## Development acceptance
+
+`acceptance-identity-applications.yml` exercises native first login, self-profile
+permissions, HTTP/OIDC, service credentials and role demotion without a browser.
+`acceptance-identity-projects.yml`
+adds three disposable Gitea organizations, scoped human PAT/SSH access and role
+removal across a configuration rerun. Both remove their disposable identities;
+run them sequentially with the selected inventory and protected inputs.
 
 These tests change the development appliance temporarily. Run them sequentially,
 with the controller inputs and verified SSH host-key options used above:
@@ -392,22 +457,24 @@ runs. No model provider is required for deployment or structural verification.
 | `openclaw_netbox_enabled` | Defaults to `true`. Disabling removes the MCP configuration and skill mount; preserves the identity, inventory, and protected credential. |
 | `openclaw_netbox_url` | Defaults to `https://netbox.<infrabox_domain>`, the existing nginx HTTPS route. The internal NetBox container endpoint is HTTP and is not used for this integration. |
 | `openclaw_netbox_mcp_version` | Pinned to `0.2.0`; change the package manifest and lockfile together when deliberately upgrading. |
-| `netbox_openclaw_username` | Dedicated service identity, default `infrabox-openclaw`. |
+| `netbox_openclaw_username` | Dedicated service identity, default `svc-openclaw`. |
 | `netbox_openclaw_token_description` | Credential ownership label, default `InfraBox OpenClaw MCP`. Keep it stable after provisioning. |
 
-The service identity has no password login, staff/superuser status, or account
-administration permissions. Its exact permissions are view/add/change/delete on
+The service identity authenticates with its own LLDAP password only to obtain
+its native application token. It has no local password, superuser status or
+account-administration permissions. Its exact permissions are view/add/change/delete on
 the onboarding plan's inventory models and tags, including platforms, MAC
-addresses, Config Contexts, and existing untagged records. The NetBox role reconciles this dedicated identity,
-permissions, generic hardware types, starter roles, and tags without overwriting
+addresses, Config Contexts, and existing untagged records. Native LDAP mirrors its central editor group. The NetBox role configures group
+ObjectPermissions, generic hardware types, starter roles, and tags without overwriting
 existing inventory. The OpenClaw role invokes those NetBox tasks, then owns
 credential storage, materialization, MCP configuration, and the managed skill.
 
 NetBox 4.7's [default permissions](https://github.com/netbox-community/netbox/blob/v4.7.0/netbox/netbox/settings.py)
 grant every user permission to manage their own API tokens,
 bookmarks, subscriptions, and notifications. A small NetBox authorization backend
-excludes those defaults for the dedicated integration username and denies fallback
-grants. Human accounts retain their normal self-service permissions. This backend
+excludes those defaults for LDAP service identities and denies fallback grants.
+A separate final authentication backend rejects local-password fallback after
+native LDAP has been attempted. Human accounts retain their normal self-service permissions. This backend
 is mounted read-only into both NetBox containers; deploying its configuration
 requires their normal service restart. Inventory access still comes from NetBox
 object permissions, and the integration's effective permissions are checked exactly.
@@ -497,6 +564,7 @@ Apply changes with `agent.yml` and your explicit inventory and protected inputs
 as above. Component verification checks isolation, Nmap version, socket access,
 and rejected invalid targets without sending scan probes or invoking a model.
 Local scanner tests also include `node --test tests/test_subnet_plugin.mjs`.
+Monitoring transport tests use `node --test tests/monitoring.test.mjs tests/mcp-probe-runtime.test.mjs`; they require local Unix socket access.
 Conversational approval and a real network scan remain operator checks.
 
 ### Web search through OpenAI

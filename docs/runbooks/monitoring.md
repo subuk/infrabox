@@ -3,7 +3,7 @@
 Affected capability: health cannot be established reliably. Unknown is not a
 confirmed application outage, and absence of firing alerts is not success.
 
-Check `systemctl status infrabox-checks.timer infrabox-canary.timer
+Check `systemctl status infrabox-checks.timer infrabox-mcp-check.timer infrabox-mcp-runtime.service infrabox-canary.timer
 infrabox-node-exporter infrabox-health prometheus`, then Prometheus readiness,
 Targets and Rules. Inspect only bounded unit status and rule errors; never print
 monitoring token files, application environments or full container metadata.

@@ -10,6 +10,7 @@ import re
 import secrets
 import socket
 import ssl
+import subprocess
 import sys
 import tempfile
 from urllib.error import HTTPError
@@ -108,22 +109,6 @@ class Manager:
         c = self.c
         repo = self.api(self.repo)
         require(repo['private'] and repo['has_actions'], 'Platform must be provisioned before OpenClaw discovery')
-        user = self.api('/users/' + c['username'], missing=True)
-        # Only adopt an existing identity bearing our dedicated ownership marker.
-        email = c['username'] + '@infrabox.invalid'
-        if user is not None:
-            require(user.get('email') == email, 'Discovery username belongs to another identity')
-        desired = {'admin': False, 'allow_create_organization': False, 'allow_git_hook': False,
-                   'allow_import_local': False, 'max_repo_creation': 0}
-        if user is None:
-            require(configure, 'Discovery identity missing')
-            self.api('/admin/users', {**desired, 'username': c['username'], 'email': email,
-                     'password': secrets.token_urlsafe(48), 'must_change_password': False}, 'POST')
-            self.changed = True
-        else:
-            # Gitea's public user response calls this is_admin; inspect privileged
-            # settings through the admin user list before reconciling.
-            require(not user.get('is_admin', False), 'Discovery identity unexpectedly has administrator authority')
         org = '/orgs/' + c['organization']
         teams = self.pages(org + '/teams')
         team = next((t for t in teams if t['name'] == 'OpenClawDiscovery'), None)
@@ -145,12 +130,26 @@ class Manager:
             require(configure, 'Discovery repository membership missing')
             self.api(team_path + '/repos/' + c['organization'] + '/' + c['repository'], method='PUT')
             self.changed = True
-        members = self.pages(team_path + '/members')
-        require(all(u['login'] == c['username'] for u in members), 'Discovery team has unrelated members')
-        if not members:
-            require(configure, 'Discovery team membership missing')
-            self.api(team_path + '/members/' + c['username'], method='PUT')
+        auth = 'Basic ' + base64.b64encode((c['username'] + ':' + c['password']).encode()).decode()
+        user = self.api('/user', auth=auth)
+        require(user['login'] == c['username'] and not user.get('is_admin'),
+                'Native service LDAP returned unexpected identity or authority')
+        # Native source owns authentication; these application-specific limits
+        # prevent a scoped PAT from creating unrelated personal repositories.
+        result = subprocess.run(['podman', 'exec', '--user', 'postgres', 'postgresql',
+            'psql', '-XAt', '-U', 'postgres', '-d', 'gitea', '-c',
+            'SELECT max_repo_creation,allow_create_organization,allow_git_hook,allow_import_local '
+            'FROM "user" WHERE id=' + str(int(user['id']))], capture_output=True, text=True, timeout=30)
+        require(result.returncode == 0, 'Discovery native permission inspection failed')
+        if result.stdout.strip() != '0|f|f|f':
+            require(configure, 'Discovery personal repository or administrative limits differ')
+            self.api('/admin/users/' + c['username'], {'login_name': c['username'],
+                     'max_repo_creation': 0, 'allow_create_organization': False,
+                     'allow_git_hook': False, 'allow_import_local': False}, 'PATCH')
             self.changed = True
+        members = self.pages(team_path + '/members')
+        require(c['username'] in {u['login'] for u in members},
+                'Central discovery role is missing; Ansible will not restore membership')
         # Direct collaborator grants and other teams could override Code Read.
         member_teams = self.pages('/user/teams', sudo=c['username'])
         require({t['id'] for t in member_teams} == {team['id']}, 'Discovery identity has unexpected teams')
@@ -195,12 +194,7 @@ class Manager:
                          set(current.get('scopes', [])) == {'read:user', 'write:repository'})
         if not valid:
             require(configure, 'Discovery token unavailable or revoked')
-            password = secrets.token_urlsafe(48)
-            self.api('/admin/users/' + c['username'], {'source_id': 0, 'login_name': c['username'],
-                     'password': password, 'must_change_password': False, 'admin': False,
-                     'allow_create_organization': False, 'allow_git_hook': False,
-                     'allow_import_local': False, 'max_repo_creation': 0}, 'PATCH')
-            auth = 'Basic ' + base64.b64encode((c['username'] + ':' + password).encode()).decode()
+            auth = 'Basic ' + base64.b64encode((c['username'] + ':' + c['password']).encode()).decode()
             token = self.api('/users/' + c['username'] + '/tokens',
                              {'name': 'infrabox-discovery-' + secrets.token_hex(8),
                               'scopes': ['read:user', 'write:repository']}, 'POST', auth=auth)

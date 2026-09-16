@@ -14,7 +14,7 @@ import uuid
 
 config = json.load(sys.stdin)
 domain = config['domain']
-authorization = 'Basic ' + base64.b64encode(('admin:' + config['password']).encode()).decode()
+authorization = 'Basic ' + base64.b64encode((config['username'] + ':' + config['password']).encode()).decode()
 context = ssl.create_default_context()
 base = 'https://git.' + domain
 def api(method, path, data=None):
@@ -31,14 +31,14 @@ def run(args, **kwargs):
 
 name = 'infrabox-acceptance-' + uuid.uuid4().hex[:10]
 repo = api('POST', '/user/repos', {'name': name, 'private': True, 'auto_init': True})
-path = '/repos/admin/' + name
+path = '/repos/' + config['username'] + '/' + name
 key = None
 try:
     with tempfile.TemporaryDirectory(prefix='infrabox-acceptance-') as temporary:
         work = Path(temporary)
         environment = dict(os.environ, GIT_CONFIG_COUNT='1', GIT_CONFIG_KEY_0='http.extraHeader',
                            GIT_CONFIG_VALUE_0='Authorization: ' + authorization, GIT_TERMINAL_PROMPT='0')
-        run(['git', 'clone', base + '/admin/' + name + '.git', str(work / 'https')], env=environment)
+        run(['git', 'clone', base + '/' + config['username'] + '/' + name + '.git', str(work / 'https')], env=environment)
         (work / 'https' / 'https-test.txt').write_text('InfraBox HTTPS acceptance\n')
         run(['git', '-C', str(work / 'https'), 'add', 'https-test.txt'])
         run(['git', '-C', str(work / 'https'), '-c', 'user.name=InfraBox acceptance', '-c', 'user.email=acceptance@' + domain, 'commit', '-m', 'Test HTTPS push'])
@@ -50,7 +50,7 @@ try:
         hostkeys = run(['ssh-keyscan', '-p', '2222', '127.0.0.1'])
         (work / 'known_hosts').write_text(hostkeys)
         ssh = f'ssh -i {work}/id -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile={work}/known_hosts'
-        run(['git', 'clone', 'ssh://git@127.0.0.1:2222/admin/' + name + '.git', str(work / 'ssh')],
+        run(['git', 'clone', 'ssh://git@127.0.0.1:2222/' + config['username'] + '/' + name + '.git', str(work / 'ssh')],
             env=dict(os.environ, GIT_SSH_COMMAND=ssh))
         (work / 'ssh' / 'ssh-test.txt').write_text('InfraBox SSH acceptance\n')
         run(['git', '-C', str(work / 'ssh'), 'add', 'ssh-test.txt'])

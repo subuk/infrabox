@@ -17,6 +17,10 @@ openbao_agent_certificates:
     common_name: 'redis.{{ infrabox_internal_domain }}'
     uid: 999
     gid: 999
+  - name: lldap
+    common_name: 'lldap.{{ infrabox_internal_domain }}'
+    uid: 992
+    gid: 992
   - name: nginx
     common_name: '{{ infrabox_domain }}'
     alt_names:
@@ -24,6 +28,7 @@ openbao_agent_certificates:
       - 'netbox.{{ infrabox_domain }}'
       - 'vault.{{ infrabox_domain }}'
       - 'grafana.{{ infrabox_domain }}'
+      - 'ldap.{{ infrabox_domain }}'
       - '{{ openclaw_hostname | default("claw." ~ infrabox_domain) }}'
     uid: 0
     gid: 0

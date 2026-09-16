@@ -18,7 +18,7 @@ class DiscoveryCredentialTests(unittest.TestCase):
         self.path = Path(self.temp.name) / 'discovery-token'
         self.m = credential.Manager.__new__(credential.Manager)
         self.m.c = {'action': 'provision', 'username': 'discovery', 'organization': 'platform',
-                    'repository': 'automation', 'token_file': str(self.path),
+                    'repository': 'automation', 'token_file': str(self.path), 'password': 'fixture-service-password',
                     'uid': os.getuid(), 'gid': os.getgid()}
         self.m.changed = False
         self.m.identity = lambda configure: None

@@ -1,0 +1,35 @@
+---
+# Disruptive: run only after explicit authorization to stop LLDAP/OpenBao.
+- name: Verify identity outage alerts and host recovery
+  hosts: infrabox
+  become: true
+  tasks:
+    - name: Install bounded identity failure helper
+      ansible.builtin.copy:
+        src: scripts/test-identity-recovery.py
+        dest: /run/infrabox-test-identity-recovery.py
+        mode: '0700'
+    - name: Exercise authorized dependency failures
+      block:
+        - name: Stop each dependency, verify alerts and restore it
+          ansible.builtin.command: python3 /run/infrabox-test-identity-recovery.py
+          async: 2400
+          poll: 5
+          changed_when: true
+          register: identity_recovery_acceptance
+        - name: Report sanitized identity recovery evidence
+          ansible.builtin.debug:
+            var: identity_recovery_acceptance.stdout_lines
+      always:
+        - name: Restore both identity services after any test interruption
+          ansible.builtin.systemd_service:
+            name: '{{ item }}.service'
+            state: started
+          loop: [lldap, openbao]
+        - name: Remove the disposable outage helper
+          ansible.builtin.file:
+            path: /run/infrabox-test-identity-recovery.py
+            state: absent
+- ansible.builtin.import_playbook: identity.yml
+- ansible.builtin.import_playbook: verify.yml
+- ansible.builtin.import_playbook: monitoring-verify.yml

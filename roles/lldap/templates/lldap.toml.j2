@@ -1,0 +1,23 @@
+ldap_host = "0.0.0.0"
+ldap_port = 3890
+http_host = "0.0.0.0"
+http_port = 17170
+http_url = {{ ('https://ldap.' ~ infrabox_domain) | to_json }}
+ldap_base_dn = {{ lldap_base_dn | to_json }}
+ldap_user_dn = {{ lldap_admin_username | to_json }}
+ldap_user_email = {{ (lldap_admin_username ~ '@' ~ infrabox_domain) | to_json }}
+ldap_user_pass = {{ lldap_admin_password | to_json }}
+force_ldap_user_pass_reset = false
+jwt_secret = {{ lldap_jwt_secret | to_json }}
+key_seed = {{ lldap_key_seed | to_json }}
+key_file = "/data/private_key"
+assets_path = "/app/app"
+database_url = {{ ('postgresql://lldap:' ~ (lldap_database_password | urlencode | replace('/', '%2F')) ~ '@postgresql.' ~ infrabox_internal_domain ~ '/lldap?sslmode=verify-full&sslrootcert=/run/infrabox-ca/root-ca.crt') | to_json }}
+[ldaps_options]
+enabled = true
+port = 6360
+cert_file = "/run/infrabox-pki/server-chain.crt"
+key_file = "/run/infrabox-pki/server.key"
+[healthcheck_options]
+http_host = "localhost"
+ldap_host = "localhost"

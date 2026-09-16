@@ -1,0 +1,36 @@
+---
+# Incremental KRG-17 edge/Grafana gate; other application routes are not yet verified.
+- name: Deploy central login and first OIDC consumer
+  hosts: infrabox
+  become: true
+  roles:
+    - role: grafana
+      tags: [grafana]
+  tasks:
+    - name: Install HTTPS edge
+      ansible.builtin.include_role:
+        name: nginx
+        tasks_from: install
+        apply:
+          tags: [install]
+    - name: Configure HTTPS edge
+      ansible.builtin.include_role:
+        name: nginx
+        tasks_from: configure
+        apply:
+          tags: [configure]
+    - name: Start HTTPS edge
+      ansible.builtin.include_role:
+        name: nginx
+        tasks_from: service
+        apply:
+          tags: [service]
+    - name: Verify central login and directory routes with host trust
+      ansible.builtin.uri:
+        url: '{{ item }}'
+      loop:
+        - 'https://vault.{{ infrabox_domain }}/v1/sys/health'
+        - 'https://vault.{{ infrabox_domain }}/login/'
+        - 'https://ldap.{{ infrabox_domain }}/'
+        - 'https://grafana.{{ infrabox_domain }}/api/health'
+      tags: [verify]

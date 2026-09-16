@@ -1,0 +1,15 @@
+---
+identity_openbao_socket: /run/infrabox-openbao/api.sock
+identity_openbao_controller_dir: '{{ playbook_dir }}/.secrets/{{ inventory_hostname }}'
+identity_openbao_provider: infrabox
+# Finite defaults pending the separate session-lifetime decision.
+identity_openbao_human_ttl: 3600
+identity_openbao_human_max_ttl: 28800
+identity_openbao_enrollment_ttl: 300
+identity_openbao_clients:
+  grafana:
+    redirect_uris: ['https://grafana.{{ infrabox_domain }}/login/generic_oauth']
+  gitea:
+    redirect_uris: ['https://git.{{ infrabox_domain }}/user/oauth2/openbao/callback']
+  netbox:
+    redirect_uris: ['https://netbox.{{ infrabox_domain }}/oauth/complete/oidc/']

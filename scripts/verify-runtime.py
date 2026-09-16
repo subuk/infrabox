@@ -12,16 +12,16 @@ claw_hostname = sys.argv[2] if len(sys.argv) > 2 else "claw." + domain
 def run(args):
     return subprocess.run(args, check=True, capture_output=True, text=True).stdout
 
-for unit in ['openbao', 'openbao-agent', 'postgresql', 'redis', 'gitea', 'netbox',
+for unit in ['openbao', 'openbao-agent', 'postgresql', 'redis', 'lldap', 'gitea', 'netbox',
              'netbox-worker', 'nginx', 'prometheus', 'grafana', 'gitea-runner',
              'openbao-agent-secret-id.timer', 'infrabox-runner-firewall']:
     run(['systemctl', 'is-active', unit])
-for name in ['openbao', 'postgresql', 'redis', 'nginx']:
+for name in ['openbao', 'postgresql', 'redis', 'lldap', 'nginx']:
     base = '/etc/infrabox/pki/' + name + '/'
     public = run(['openssl', 'x509', '-in', base + 'server.crt', '-pubkey', '-noout'])
     assert public == run(['openssl', 'pkey', '-in', base + 'server.key', '-pubout']), name + ' key mismatch'
     if name == 'nginx':
-        for service in ['git', 'netbox', 'vault', 'grafana', 'claw']:
+        for service in ['git', 'netbox', 'vault', 'grafana', 'claw', 'ldap']:
             run(['openssl', 'x509', '-in', base + 'server.crt', '-noout', '-checkhost', claw_hostname if service == 'claw' else service + '.' + domain])
 assert 'tls_disable = true' not in Path('/etc/infrabox/openbao/config.hcl').read_text().split('listener "unix"')[0]
 try:
@@ -35,20 +35,25 @@ runner = json.loads(run(['podman', 'inspect', 'gitea-runner', '--format', '{"Net
 assert set(runner['NetworkSettings']['Networks']) == {'infrabox-runner'}
 assert all('sock' not in m['Destination'] for m in runner['Mounts'])
 assert int(run(['podman', 'exec', 'gitea-runner', 'cat', '/proc/self/uid_map']).split()[1]) != 0
-for name, port in [('postgresql', 5432), ('redis', 6379)]:
+for name, port in [('postgresql', 5432), ('redis', 6379), ('lldap', 6360)]:
     info = json.loads(run(['podman', 'inspect', name, '--format', '{"NetworkSettings":{"Networks":{{json .NetworkSettings.Networks}}},"HostConfig":{"PortBindings":{{json .HostConfig.PortBindings}}}}']))
-    assert not info['HostConfig']['PortBindings'], name + ' publishes a host port'
+    bindings = info['HostConfig']['PortBindings']
+    if name == 'lldap':
+        assert bindings == {'6360/tcp': [{'HostIp': '127.0.0.1', 'HostPort': '16360'}],
+                            '17170/tcp': [{'HostIp': '127.0.0.1', 'HostPort': '17170'}]}, 'LLDAP management must remain loopback-only'
+    else:
+        assert not bindings, name + ' publishes a host port'
     address = info['NetworkSettings']['Networks']['infrabox']['IPAddress']
     result = subprocess.run(['podman', 'exec', 'gitea-runner', 'timeout', '3', 'nc', '-w', '2', address, str(port)],
                             input='', capture_output=True, text=True)
     assert result.returncode in [1, 124, 143], name + ' network isolation failed'
 for service, suffix in [('git', '/api/healthz'), ('netbox', '/login/')]:
     run(['podman', 'exec', 'gitea-runner', 'wget', '-q', '-O', '/dev/null', '-T', '10', 'https://' + service + '.' + domain + suffix])
-for service in ['vault', 'grafana', 'claw']:
+for service in ['vault', 'grafana', 'claw', 'ldap']:
     result = subprocess.run(['podman', 'exec', 'gitea-runner', 'wget', '-S', '-O', '/dev/null', '-T', '10', 'https://' + (claw_hostname if service == 'claw' else service + '.' + domain)], capture_output=True, text=True)
     assert result.returncode != 0 and '403 Forbidden' in result.stderr, service + ' runner restriction failed'
 if Path('/etc/infrabox/monitoring/catalog.json').exists():
-    for unit in ['infrabox-node-exporter','infrabox-health','infrabox-checks.timer','infrabox-canary.timer']:
+    for unit in ['infrabox-node-exporter','infrabox-health','infrabox-checks.timer','infrabox-mcp-check.timer','infrabox-mcp-runtime','infrabox-canary.timer']:
         run(['systemctl','is-active',unit])
     address=json.loads(run(['podman','network','inspect','infrabox']))[0]['subnets'][0]['gateway']
     listeners=run(['ss','-H','-lnt','( sport = :9100 )']).splitlines()

@@ -20,3 +20,5 @@
   vars:
     quadlet_name: netbox-worker
     quadlet_definition: '{{ lookup("ansible.builtin.template", "netbox-worker.container.j2") }}'
+- name: Configure central role definitions
+  ansible.builtin.import_tasks: identity.yml

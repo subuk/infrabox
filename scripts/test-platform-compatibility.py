@@ -105,12 +105,23 @@ def run(c, report):
     if not re.fullmatch('[0-9a-f]{40}', revision):
         raise GateError('Invalid source revision')
     report['revision'] = revision
+    report.update(workflow=workflow, stage='workflow_preflight', dispatch_status='not_attempted')
+    try:
+        request(repo + '/contents/.gitea/workflows/' + workflow + '?ref=' + revision)
+    except GateError as error:
+        if str(error) == 'Gitea compatibility HTTP 404':
+            reason = 'Selected revision has no ' + workflow
+            if workflow == 'compatibility.yml':
+                reason += '; use discovery acceptance with an explicitly selected managed host'
+            raise GateError(reason) from None
+        raise
     payload = {'ref': c['branch']}
     if workflow == 'discover.yml':
         payload['inputs'] = {'targets': c['targets']}
+    report.update(stage='workflow_dispatch', dispatch_status='uncertain')
     details = request(repo + '/actions/workflows/' + workflow + '/dispatches?return_run_details=true', payload)
     run_id = int(details['workflow_run_id'])
-    report.update(run_id=run_id, run_url=details['html_url'])
+    report.update(run_id=run_id, run_url=details['html_url'], dispatch_status='confirmed', stage='workflow_result')
     deadline = time.monotonic() + (1260 if workflow == 'discover.yml' else 420)
     while time.monotonic() < deadline:
         result = request(repo + '/actions/runs/' + str(run_id))
@@ -123,6 +134,7 @@ def run(c, report):
         time.sleep(5)
     else:
         raise GateError('Compatibility run timed out; inspect its retained run')
+    report['stage'] = 'artifact_download'
     artifacts = request(repo + '/actions/runs/' + str(run_id) + '/artifacts')['artifacts']
     matches = [a for a in artifacts if not a['expired'] and
                (a['name'] == 'platform-compatibility' if workflow == 'compatibility.yml'
@@ -135,7 +147,7 @@ def run(c, report):
         verify_archive(data, revision)
     else:
         report.update(verify_discovery_archive(data, revision, run_id, expected))
-    report.update(outcome='passed', artifact_id=artifact_id,
+    report.update(outcome='passed', stage='complete', artifact_id=artifact_id,
                   checks=['manual_dispatch', 'exact_sha_checkout', 'artifact_upload_and_download'])
 
 

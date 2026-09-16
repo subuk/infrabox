@@ -11,7 +11,8 @@ import ssl
 import subprocess
 import sys
 import tempfile
-from urllib.request import Request, urlopen
+import grafana_service
+from urllib.request import Request, build_opener, HTTPSHandler, HTTPRedirectHandler, ProxyHandler
 from urllib.error import HTTPError
 
 
@@ -27,8 +28,13 @@ def atomic(path, value):
 
 def basic(user,password): return 'Basic '+base64.b64encode((user+':'+password).encode()).decode()
 
+class NoRedirect(HTTPRedirectHandler):
+    def redirect_request(self,*args):
+        raise RuntimeError('Monitoring credential request refused redirect')
+
 def main(c):
     ctx=ssl.create_default_context(cafile=c['ca']); changed=False
+    opener=build_opener(ProxyHandler({}),HTTPSHandler(context=ctx),NoRedirect())
     # NOLOGIN monitoring role; the fixed host worker selects it over local peer auth.
     sql="""SELECT count(*) FROM pg_roles WHERE rolname='infrabox_monitor'"""
     command=['podman','exec','-i','--user','postgres','postgresql','psql','-X','-v','ON_ERROR_STOP=1','-At','-U','postgres']
@@ -43,7 +49,7 @@ def main(c):
     def api(base,path,auth,method='GET',data=None,missing=False):
         req=Request(base+path,json.dumps(data).encode() if data is not None else None,{'Authorization':auth,'Content-Type':'application/json'},method=method)
         try:
-            with urlopen(req,context=ctx,timeout=15) as r:
+            with opener.open(req,timeout=15) as r:
                 b=r.read(1024*1024); return json.loads(b) if b else {}
         except HTTPError as e:
             if missing and e.code==404:return None
@@ -60,55 +66,48 @@ def main(c):
             if r.status>=300:raise RuntimeError('OpenBao provisioning failed')
             return json.loads(b) if b else {}
         finally:conn.close()
-    def management(path,data=None,method=None,token=None):
-        conn=Bao('localhost',timeout=15)
-        try:
-            conn.request(method or ('GET' if data is None else 'POST'),'/v1/'+path,None if data is None else json.dumps(data),{'X-Vault-Token':token or c['root_token'],'Content-Type':'application/json'})
-            r=conn.getresponse();b=r.read(65536)
-            if r.status in (400,403,404):return None
-            if r.status>=300:raise RuntimeError('OpenBao monitoring management failed')
-            return json.loads(b) if b else {}
-        finally:conn.close()
-    policy='path "sys/metrics" { capabilities = ["read", "list"] }\npath "auth/token/lookup-self" { capabilities = ["read"] }\npath "auth/token/renew-self" { capabilities = ["update"] }\n'
-    existing=management('sys/policies/acl/infrabox-monitoring')
-    if existing is None or existing['data']['policy']!=policy:
-        management('sys/policies/acl/infrabox-monitoring',{'policy':policy});changed=True
     directory=Path(c['secrets_dir']);directory.mkdir(mode=0o700,parents=True,exist_ok=True)
-    tokenfile=directory/'bao-token';old=tokenfile.read_text().strip() if tokenfile.exists() else None
-    info=management('auth/token/lookup-self',token=old) if old else None
-    if info and 'root' in info['data'].get('policies',[]):raise RuntimeError('Refusing unexpected root token')
-    valid=info and set(info['data'].get('policies',[]))=={'infrabox-monitoring'} and info['data'].get('period')==604800 and info['data'].get('ttl',0)>0
-    if not valid:
-        token=management('auth/token/create-orphan',{'policies':['infrabox-monitoring'],'no_default_policy':True,'period':'168h','renewable':True,'display_name':'infrabox-monitoring'})['auth']['client_token']
-        if not management('sys/metrics',token=token):
-            management('auth/token/revoke',{'token':token})
-            raise RuntimeError('Monitoring token verification failed')
-        changed=atomic(tokenfile,token+'\n') or changed
-        if info:management('auth/token/revoke-accessor',{'accessor':info['data']['accessor']})
+    changed=atomic(directory/'ldap.json',json.dumps({'username':'svc-monitor','password':c['monitor_password']})+'\n') or changed
     if bao('data/openclaw/monitoring/probe') is None:
         bao('data/openclaw/monitoring/probe',{'value':secrets.token_hex(16)});changed=True
     directory=Path(c['secrets_dir']);directory.mkdir(mode=0o700,parents=True,exist_ok=True)
     if c['canary']:
-        base='https://git.'+c['domain']; admin=basic('admin',c['gitea_password']); user='infrabox-monitor'; repo='canary'
-        found=api(base,'/api/v1/users/'+user,admin,missing=True)
-        if found is None:
-            api(base,'/api/v1/admin/users',admin,'POST',{'username':user,'email':'monitor@'+c['domain'],'password':secrets.token_urlsafe(40),'must_change_password':False});changed=True
-        record=bao('data/monitoring/gitea'); token=record['data']['data']['token'] if record else None
-        valid=False
-        if token:
-            try:valid=api(base,'/api/v1/user','token '+token).get('login')==user
-            except RuntimeError:pass
-        if not valid:
-            password=secrets.token_urlsafe(40)
-            api(base,'/api/v1/admin/users/'+user,admin,'PATCH',{'source_id':0,'login_name':user,'password':password,'must_change_password':False,'admin':False,'allow_create_organization':False,'allow_git_hook':False,'allow_import_local':False,'max_repo_creation':1})
-            token=api(base,'/api/v1/users/'+user+'/tokens',basic(user,password),'POST',{'name':'infrabox-monitor-'+secrets.token_hex(4),'scopes':['read:user','write:repository']})['sha1']
-            if api(base,'/api/v1/user','token '+token).get('login')!=user:raise RuntimeError('Gitea monitoring identity mismatch')
-            bao('data/monitoring/gitea',{'token':token});changed=True
-        auth='token '+token; path='/api/v1/repos/'+user+'/'+repo
-        r=api(base,path,auth,missing=True)
+        base='https://git.'+c['domain']; admin=basic(c['admin_username'],c['gitea_password']); user='svc-monitor'; repo='canary'
+        own=basic(user,c['monitor_password'])
+        found=api(base,'/api/v1/user',own)
+        if found.get('login')!=user or found.get('is_admin'):raise RuntimeError('Native monitoring LDAP identity mismatch')
+        result=subprocess.run(command+['-d','gitea'],input='SELECT max_repo_creation,allow_create_organization,allow_git_hook,allow_import_local FROM "user" WHERE id='+str(int(found['id']))+';',capture_output=True,text=True,timeout=15)
+        if result.returncode:raise RuntimeError('Monitoring native permission inspection failed')
+        if result.stdout.strip()!='1|f|f|f':
+            api(base,'/api/v1/admin/users/'+user,admin,'PATCH',{'login_name':user,'max_repo_creation':1,'allow_create_organization':False,'allow_git_hook':False,'allow_import_local':False});changed=True
+        if api(base,'/api/v1/user/teams?limit=2',own):raise RuntimeError('Monitoring identity has unrelated Gitea teams')
+        path='/api/v1/repos/'+user+'/'+repo
+        r=api(base,path,own,missing=True)
         if r is None:
             api(base,'/api/v1/admin/users/'+user+'/repos',admin,'POST',{'name':repo,'private':True,'auto_init':True,'default_branch':'main','description':'InfraBox bounded monitoring canary'});changed=True
-            r=api(base,path,auth)
+            r=api(base,path,own)
+        if not r['private'] or r['full_name']!=user+'/'+repo:raise RuntimeError('Monitoring canary ownership or privacy differs')
+        repositories=api(base,'/api/v1/user/repos?limit=2',own)
+        if {r['full_name'] for r in repositories}!={user+'/'+repo}:raise RuntimeError('Monitoring identity has unrelated repository access')
+        record=bao('data/monitoring/gitea'); fields=record['data']['data'] if record else {}
+        token,token_id=fields.get('token'),fields.get('tokenId')
+        tokens=api(base,'/api/v1/users/'+user+'/tokens?limit=50',own)
+        if len(tokens)>=50:raise RuntimeError('Monitoring token inventory exceeds the bounded management limit')
+        current=next((t for t in tokens if t['id']==token_id),None)
+        valid=False
+        if token and current and current['name'].startswith('infrabox-monitor-') and set(current['scopes'])=={'read:user','write:repository'}:
+            try:valid=api(base,'/api/v1/user','token '+token).get('login')==user
+            except RuntimeError:pass
+        replacement=not valid
+        if replacement:
+            created=api(base,'/api/v1/users/'+user+'/tokens',own,'POST',{'name':'infrabox-monitor-'+secrets.token_hex(4),'scopes':['read:user','write:repository']})
+            token,token_id=created['sha1'],created['id']
+            if api(base,'/api/v1/user','token '+token).get('login')!=user:raise RuntimeError('Gitea monitoring identity mismatch')
+            changed=True
+        auth='token '+token
+        r=api(base,path,auth)
+        if not r['permissions'].get('push') or {r['full_name'] for r in api(base,'/api/v1/user/repos?limit=2',auth)}!={user+'/'+repo}:
+            raise RuntimeError('Monitoring PAT does not match its canary authorization boundary')
         if not r.get('has_actions'):
             api(base,path,auth,'PATCH',{'has_actions':True});changed=True
         workflow=Path(c['workflow']).read_bytes(); content=api(base,path+'/contents/.gitea/workflows/canary.yml',auth,missing=True)
@@ -116,22 +115,31 @@ def main(c):
             body={'content':base64.b64encode(workflow).decode(),'message':'Configure fixed InfraBox canary','branch':'main'}
             if content:body['sha']=content['sha']
             api(base,path+'/contents/.gitea/workflows/canary.yml',auth,'PUT' if content else 'POST',body);changed=True
+        if replacement:
+            bao('data/monitoring/gitea',{'token':token,'tokenId':token_id});changed=True
         changed=atomic(directory/'gitea-token',token+'\n') or changed
-    base='http://127.0.0.1:3001'; admin=basic('admin',c['grafana_password'])
+        # Publish a positively verified replacement before retiring managed predecessors.
+        for old in tokens:
+            if old['id']!=token_id and old['name'].startswith('infrabox-monitor-'):
+                api(base,'/api/v1/users/'+user+'/tokens/'+str(old['id']),own,'DELETE');changed=True
+    base='https://grafana.'+c['domain']
+    admin=basic(c['admin_username'],c['gitea_password'])
+    me=api(base,'/api/user',admin)
+    if me.get('login')!=c['admin_username'] or not me.get('isGrafanaAdmin'):raise RuntimeError('Central Grafana technical identity mismatch')
+    monitor=grafana_service.Monitor(api,base,admin)
     record=bao('data/monitoring/grafana'); token=record['data']['data']['token'] if record else None
+    token_id=record['data']['data'].get('tokenId') if record else None
     valid=False
     if token:
-        try:valid=bool(api(base,'/api/datasources/uid/infrabox-prometheus','Bearer '+token))
+        try:valid=monitor.valid(token,token_id)
         except RuntimeError:pass
     if not valid:
-        accounts=api(base,'/api/serviceaccounts/search?query=infrabox-monitor',admin)['serviceAccounts']
-        account=next((x for x in accounts if x['name']=='infrabox-monitor'),None)
-        if account is None:account=api(base,'/api/serviceaccounts',admin,'POST',{'name':'infrabox-monitor','role':'Viewer'})
-        if account.get('role')!='Viewer':raise RuntimeError('Unexpected Grafana monitoring privilege')
-        token=api(base,'/api/serviceaccounts/'+str(account['id'])+'/tokens',admin,'POST',{'name':'monitor-'+secrets.token_hex(4),'secondsToLive':0})['key']
-        api(base,'/api/datasources/uid/infrabox-prometheus','Bearer '+token)
-        bao('data/monitoring/grafana',{'token':token});changed=True
+        token,token_id=monitor.create()
+        bao('data/monitoring/grafana',{'token':token,'tokenId':token_id});changed=True
+        changed=atomic(directory/'grafana-token',token+'\n') or changed
     changed=atomic(directory/'grafana-token',token+'\n') or changed
+    if token_id is None:raise RuntimeError('Native Grafana monitoring token identifier missing')
+    changed=monitor.retire_except(token_id) or changed
     print(json.dumps({'changed':changed}))
 
 if __name__=='__main__':

@@ -1,0 +1,9 @@
+---
+- name: Configure central directory and human authentication
+  hosts: infrabox
+  become: true
+  roles:
+    - role: identity_directory
+      tags: [identity_directory]
+    - role: identity_openbao
+      tags: [identity_openbao]

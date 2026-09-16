@@ -1,0 +1,116 @@
+---
+- name: Verify the private persistent MCP probe and current policy enforcement
+  hosts: infrabox
+  become: true
+  tasks:
+    - name: Wait for the fixed MCP read
+      ansible.builtin.command: &mcp_read
+        argv: [podman, exec, --no-session, openclaw, node, /opt/infrabox/monitoring/openclaw-probe.mjs, mcp]
+      register: monitoring_mcp_initial
+      changed_when: false
+      until: monitoring_mcp_initial.rc == 0
+      retries: 20
+      delay: 3
+    - name: Record only the private runtime process ID
+      ansible.builtin.command:
+        argv: [podman, exec, --no-session, openclaw, cat, /tmp/infrabox-monitoring-runtime/pid]
+      register: monitoring_mcp_pid
+      changed_when: false
+    - name: Record Gateway invocation before restarting its probe helper
+      ansible.builtin.command: systemctl show openclaw.service -p InvocationID --value
+      register: monitoring_mcp_gateway_before
+      changed_when: false
+    - name: Record native child process identities before helper restart
+      ansible.builtin.command:
+        argv:
+          - podman
+          - exec
+          - --no-session
+          - openclaw
+          - node
+          - --input-type=module
+          - -e
+          - |
+            import fs from 'node:fs';
+            const root=Number(fs.readFileSync('/tmp/infrabox-monitoring-runtime/pid','utf8'));
+            const procs=[];
+            for(const pid of fs.readdirSync('/proc').filter(x=>/^\d+$/.test(x))){
+              try{const raw=fs.readFileSync('/proc/'+pid+'/stat','utf8');const fields=raw.slice(raw.lastIndexOf(')')+2).split(' ');procs.push({pid:Number(pid),parent:Number(fields[1]),start:fields[19]});}catch{}
+            }
+            const found=new Set([root]);let before;
+            do{before=found.size;for(const p of procs)if(found.has(p.parent))found.add(p.pid);}while(found.size!==before);
+            const children=procs.filter(p=>p.pid!==root&&found.has(p.pid)).map(({pid,start})=>({pid,start}));
+            if(!children.length)throw Error('Native transport child missing');
+            console.log(JSON.stringify(children));
+      register: monitoring_mcp_children
+      changed_when: false
+    - name: Restart only the probe helper
+      ansible.builtin.systemd_service:
+        name: infrabox-mcp-runtime.service
+        state: restarted
+    - name: Require a successful fresh read after helper restart
+      ansible.builtin.command: *mcp_read
+      register: monitoring_mcp_restarted
+      changed_when: false
+      until: monitoring_mcp_restarted.rc == 0
+      retries: 20
+      delay: 3
+    - name: Require native transport children to exit with the old helper
+      ansible.builtin.command:
+        argv:
+          - podman
+          - exec
+          - --no-session
+          - openclaw
+          - node
+          - --input-type=module
+          - -e
+          - |
+            import fs from 'node:fs';
+            for(const old of JSON.parse(process.argv[1])){
+              try{const raw=fs.readFileSync('/proc/'+old.pid+'/stat','utf8');const fields=raw.slice(raw.lastIndexOf(')')+2).split(' ');if(fields[19]===old.start&&fields[0]!=='Z')throw Error('Old native transport child remains');}catch(e){if(e.code!=='ENOENT')throw e;}
+            }
+            console.log('Old native transport children exited');
+          - '{{ monitoring_mcp_children.stdout }}'
+      changed_when: false
+    - name: Require unchanged Gateway invocation after helper restart
+      ansible.builtin.command: systemctl show openclaw.service -p InvocationID --value
+      register: monitoring_mcp_gateway_after
+      changed_when: false
+      failed_when: monitoring_mcp_gateway_after.stdout != monitoring_mcp_gateway_before.stdout
+    - name: Verify replaced helper identity and private socket permissions
+      ansible.builtin.command:
+        argv:
+          - podman
+          - exec
+          - --no-session
+          - openclaw
+          - node
+          - --input-type=module
+          - -e
+          - |
+            import fs from 'node:fs';
+            const dir='/tmp/infrabox-monitoring-runtime';
+            const old=Number(process.argv[1]);
+            const current=Number(fs.readFileSync(dir+'/pid','utf8'));
+            if(!Number.isSafeInteger(old)||current===old)throw Error('Runtime identity unchanged');
+            try{const args=fs.readFileSync('/proc/'+old+'/cmdline','utf8').split('\0');if(args.includes('mcp-server'))throw Error('Old runtime remains');}catch(e){if(e.code!=='ENOENT')throw e;}
+            if((fs.statSync(dir).mode&0o777)!==0o700||(fs.statSync(dir+'/mcp.sock').mode&0o777)!==0o600)throw Error('Socket permissions incorrect');
+            console.log('Helper replaced without an orphan; private socket permissions verified');
+          - '{{ monitoring_mcp_pid.stdout | trim }}'
+      changed_when: false
+    - name: Check current policy in a disposable config with the same native process
+      ansible.builtin.command:
+        argv: [podman, exec, --no-session, -i, openclaw, node, --input-type=module, '-']
+        stdin: '{{ lookup("ansible.builtin.file", "scripts/test-mcp-runtime.mjs") }}'
+      register: monitoring_mcp_policy
+      no_log: true
+      changed_when: false
+      failed_when: false
+    - name: Require native policy acceptance without exposing diagnostic output
+      ansible.builtin.assert:
+        that: monitoring_mcp_policy.rc == 0
+        fail_msg: Native persistent-process policy acceptance failed.
+    - name: Report only fixed successful policy checks
+      ansible.builtin.debug:
+        msg: '{{ monitoring_mcp_policy.stdout_lines[-1] | from_json }}'

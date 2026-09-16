@@ -5,8 +5,7 @@ platform_ref: master
 platform_organization: infrabox-platform
 platform_repository: automation
 platform_branch: master
-platform_provisioner: infrabox-provisioner
-platform_operators: []
+platform_provisioner: svc-identity-admin
 platform_subnet: 10.91.0.0/24
 platform_ipv6_subnet: fd90:91::/64
 platform_interface: ib-platform0

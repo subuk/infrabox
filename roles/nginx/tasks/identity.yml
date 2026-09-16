@@ -1,0 +1,25 @@
+---
+- name: Label LLDAP HTTP administration upstream
+  ansible.builtin.command:
+    argv: [semanage, port, -a, -t, infrabox_proxy_port_t, -p, tcp, '17170']
+  changed_when: true
+  when: nginx_port_labels.stdout is not search('infrabox_proxy_port_t[^\n]*17170')
+- name: Create static human login directory
+  ansible.builtin.file:
+    path: /usr/share/nginx/html/identity
+    state: directory
+    mode: '0755'
+- name: Deploy static human login files
+  ansible.builtin.copy:
+    src: identity/
+    dest: /usr/share/nginx/html/identity/
+    mode: '0644'
+- name: Read public identity browser configuration
+  ansible.builtin.slurp:
+    src: '{{ infrabox_config_root }}/identity/browser.json'
+  register: nginx_identity_browser
+- name: Publish public client IDs and TOTP method ID
+  ansible.builtin.copy:
+    content: '{{ nginx_identity_browser.content | b64decode }}'
+    dest: /usr/share/nginx/html/identity/config.json
+    mode: '0644'

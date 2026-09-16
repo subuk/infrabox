@@ -8,10 +8,12 @@ ContainerName=grafana
 User={{ grafana_uid }}:{{ grafana_uid }}
 DropCapability=all
 NoNewPrivileges=true
+PodmanArgs=--hosts-file=none
 Network=infrabox.network
 NetworkAlias=grafana.{{ infrabox_internal_domain }}
 PublishPort=127.0.0.1:3001:3000
 EnvironmentFile={{ infrabox_config_root }}/grafana/grafana.env
+Volume={{ infrabox_config_root }}/grafana/ldap.toml:/etc/grafana/ldap.toml:ro,Z
 Volume={{ infrabox_storage_root }}/grafana:/var/lib/grafana:Z
 Volume={{ infrabox_config_root }}/grafana/datasources:/etc/grafana/provisioning/datasources:ro,Z
 Volume={{ infrabox_root_ca_path }}:/run/infrabox-ca/root-ca.crt:ro,z

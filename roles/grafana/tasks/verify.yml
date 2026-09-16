@@ -9,3 +9,38 @@
 - name: Require healthy database
   ansible.builtin.assert:
     that: grafana_health.json.database == 'ok'
+- name: Inspect native technical administrator before its first LDAP login
+  ansible.builtin.command:
+    argv:
+      - podman
+      - exec
+      - --user
+      - postgres
+      - postgresql
+      - psql
+      - -XAt
+      - -U
+      - postgres
+      - -d
+      - grafana
+      - -c
+      - "SELECT count(*) FROM \"user\" WHERE login='{{ grafana_identity_admin_username }}' AND is_admin AND NOT is_disabled;"
+  register: grafana_technical_before
+  changed_when: false
+- name: Bootstrap and verify the single central technical Grafana administrator
+  ansible.builtin.uri:
+    url: 'https://grafana.{{ infrabox_domain }}/api/user'
+    url_username: '{{ grafana_identity_admin_username }}'
+    url_password: '{{ lldap_admin_password }}'
+    force_basic_auth: true
+    ca_path: '{{ infrabox_root_ca_path }}'
+    follow_redirects: none
+  register: grafana_technical_identity
+  changed_when: grafana_technical_before.stdout | trim != '1'
+  no_log: true
+- name: Require native central administrator authority
+  ansible.builtin.assert:
+    that:
+      - grafana_technical_identity.json.login == grafana_identity_admin_username
+      - grafana_technical_identity.json.isGrafanaAdmin | bool
+    fail_msg: The technical central Grafana administrator is unavailable; do not restore removed LDAP membership automatically.
