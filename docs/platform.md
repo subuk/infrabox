@@ -19,7 +19,6 @@ For example, add the following non-secret settings to the selected inventory:
 platform_enabled: true
 platform_source: https://github.com/subuk/infrabox-platform.git
 platform_ref: master
-platform_known_hosts_file: /path/to/verified_known_hosts
 ```
 
 LLDAP group `infrabox:gitea:<organization>:operator` controls Operators membership.
@@ -61,8 +60,23 @@ to `kv/platform/ssh/default`, field `private_key` (KV v2 API path
 trusted key. Core creates `kv/platform/netbox`, field `token`, for read-only
 inventory access. Namespace paths are independent of OpenClaw's namespace.
 
-Obtain a verified known_hosts entry or fingerprint from the operator and supply
-the verified file with `platform_known_hosts_file`. Preserve host-key checking.
+SSH uses trust on first use (`StrictHostKeyChecking=accept-new`). The first
+connection automatically trusts and records the presented key; it does not
+independently verify that first key. A changed known key blocks the connection.
+Keys persist on the appliance in `{{ platform_directory }}/ssh-trust/known_hosts`,
+mounted writable at `/run/platform/ssh-trust/known_hosts` in the runner. Ansible
+only initializes a missing file and does not overwrite learned keys. Adding a
+host needs no Ansible run. Runner recreation and reboot preserve the file;
+CA trust remains mounted read-only separately. There is no migration of the old
+trust file or controller-supplied host-key setting.
+
+For a legitimate key replacement, verify the new fingerprint independently,
+then remove only the affected host entry from the appliance's persistent file
+using `ssh-keygen -R HOST -f PATH_TO_KNOWN_HOSTS` (use `[HOST]:PORT` for a
+nonstandard SSH port). Run this as the file owner, or preserve its mapped UID/GID
+when administering it as root. Use the actual SSH address (`ansible_host`). The
+next workflow run records the new key. Do not clear the entire trust file.
+
 Configure the target's native Ansible variables in NetBox Config Context and tag
 it `infrabox-managed`. Do not create customer inventory as part of provisioning.
 For multi-host/subset/partial-failure acceptance, arrange enough explicitly

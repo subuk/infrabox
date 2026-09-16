@@ -20,7 +20,8 @@ openclaw_openbao_token_period: 168h
 openclaw_openbao_token_renew_calendar: '*-*-* 00,12:00:00'
 openclaw_controller_dir: '{{ playbook_dir }}/.secrets/{{ inventory_hostname }}'
 openclaw_openbao_socket: /run/infrabox-openbao/api.sock
-# Operator-supplied provider definitions must contain SecretRefs, never API keys.
+# Real provider credentials must be Vault SecretRefs. Native local Ollama may use
+# the non-secret ollama-local marker.
 openclaw_model_providers: {}
 # Native hosted search on direct OpenAI Responses models; reuse their SecretRef.
 openclaw_web_search_enabled: true

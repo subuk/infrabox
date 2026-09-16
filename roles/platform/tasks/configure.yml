@@ -23,7 +23,6 @@
       managed_tag: '{{ platform_managed_tag }}'
       netbox_url: '{{ platform_netbox_url }}'
       trust: '{{ platform_trust_sources.results | map(attribute="stat.checksum") | list }}'
-      ssh_trust: '{{ lookup("ansible.builtin.file", platform_known_hosts_file) if platform_known_hosts_file | length > 0 else "" }}'
       management: '{{ lookup("ansible.builtin.file", role_path ~ "/files/manage.py") }}'
       identity: '{{ lookup("ansible.builtin.file", playbook_dir ~ "/roles/netbox/files/service-identity.py") }}'
       authorization: '{{ lookup("ansible.builtin.file", playbook_dir ~ "/roles/netbox/templates/infrabox_auth.py.j2") }}'
@@ -86,19 +85,12 @@
     - {src: '{{ infrabox_root_ca_path }}', name: root-ca.crt}
     - {src: /etc/pki/tls/certs/ca-bundle.crt, name: ca-bundle.crt}
   register: platform_trust
-- name: Preserve an initially empty SSH trust file pending operator setup
+- name: Initialize persistent SSH trust without overwriting learned keys
   ansible.builtin.copy:
     content: ''
-    dest: '{{ platform_directory }}/trust/known_hosts'
+    dest: '{{ platform_directory }}/ssh-trust/known_hosts'
     force: false
-    mode: '0644'
-- name: Install operator-supplied host trust
-  ansible.builtin.copy:
-    src: '{{ platform_known_hosts_file }}'
-    dest: '{{ platform_directory }}/trust/known_hosts'
-    mode: '0644'
-  when: platform_known_hosts_file | length > 0
-  register: platform_ssh_trust
+    mode: '0600'
 - name: Apply service identity permissions through the NetBox role
   ansible.builtin.include_role:
     name: netbox

@@ -6,6 +6,104 @@ and historical evidence are retained intentionally. Use [current documentation](
 for installation and operation. Earlier local-admin-only, mandatory MFA,
 no-dashboard and no-OpenClaw statements do not describe the current product.
 
+## LAN Ollama provider — 2026-09-17
+
+Added `ollama/qwen3.5:9b` alongside OpenAI on the existing development appliance
+`infrabox1` (`192.168.32.206`) using `inventories/development/hosts.yml` and the
+preserved protected controller inputs. Ollama at `http://192.168.32.38:11434`
+reported version 0.34.1; `/api/version` and `/api/tags` returned HTTP 200 from
+both appliance and Gateway container without credentials. `/api/show` reported
+text generation, vision, tools and thinking; model metadata lists a 262144-token
+context. The configured output budget is 8192; effective serving context and
+inference performance have not been measured.
+
+The role enables the bundled Ollama plugin and allows only its non-secret
+`ollama-local` marker as an alternative to scoped Vault SecretRefs. Real provider
+keys retain the existing Vault requirement. The development endpoint is included
+in NO_PROXY. Default model and fallback policy remain unchanged. Configuration
+follows OpenClaw documentation; separate version-compatibility probes were
+explicitly omitted at the operator's request.
+
+Local validation: all 92 Python unit tests and development `site.yml`
+syntax-check passed. `agent.yml` deployment passed with `ok=131 changed=2
+unreachable=0 failed=0`; Gateway restart, liveness/readiness, isolation,
+SecretRef audit and existing integration verification succeeded.
+Sanitized evidence: `artifacts/infrabox1/openclaw-ollama-deploy-20260917.log`.
+Idempotency repeat passed: `ok=130 changed=0 unreachable=0 failed=0`.
+Evidence: `artifacts/infrabox1/openclaw-ollama-repeat-20260917.log`.
+No inference, conversational tool acceptance,
+NetBox writes, discovery dispatch or reboot acceptance was performed for Ollama.
+
+## Platform discovery error reporting deployed — 2026-09-17
+
+Platform commit `4bf6a462f7504001f1c5d5a384b439605f472847` publishes bounded,
+redacted per-host error messages (including failed gather-facts modules) and
+Ansible process diagnostics in `run.json`, `summary.md` and the discovery step
+log. Known runtime credentials and common secret fields are redacted; callback
+`no_log` errors remain suppressed. Raw result dictionaries and hostvars are not
+published. Inventory authentication diagnostics are retained even when Ansible
+returns zero. This replaces the previous reason-code-only error reporting.
+
+All seven focused discovery tests passed locally, including actual error text
+in manifests/summaries and credential redaction. The first local invocation
+lacked ansible-playbook on PATH; correcting the controller venv PATH resolved
+that environment issue. A new assertion caught missing diagnostics for a
+zero-exit denied inventory; corrected before commit and deployment.
+
+Applied `automation.yml` with explicit development inventory, limit `infrabox1`
+(`192.168.32.206`) and existing protected inputs: `ok=109 changed=13
+unreachable=0 failed=0`. Runtime finalization, runner readiness and scoped
+HTTPS/isolation verification passed. Existing SSH trust was not overwritten.
+Evidence: `artifacts/infrabox1/platform-discovery-errors-deploy-20260917.log`.
+No discovery workflow was dispatched; the operator must start a new workflow
+on updated `master` to collect the current failure details. No live discovery
+acceptance or resolution of the original discovery failure is claimed.
+
+## Platform SSH trust deployed to development — 2026-09-17
+
+At the operator's request, applied `automation.yml` to the existing development
+inventory target `infrabox1` (`192.168.32.206`, `infrabox1.krglv.com`) with the
+existing protected controller inputs and SSH host-key checking. Platform's
+local `master` source was committed as
+`db8140a259eeb218ace258fd4fc9c1dcb9915144`; that revision was built, synchronized
+to the execution repository and started in the runner. Core changes remain
+local working-tree changes. Development inventory syntax-check passed.
+
+Deployment succeeded: `ok=111 changed=17 unreachable=0 failed=0`. Included
+NetBox reconciliation updated its shared model catalog and restarted web and
+worker; both recovered and passed service/TLS checks. Platform readiness,
+scoped service access, HTTPS and runtime isolation checks passed. A read-only
+post-deployment check confirmed the exact runtime revision, configured
+`accept-new`, a writable SSH trust mount and empty `known_hosts` with mode 0600,
+while CA trust remains read-only. No old host keys were migrated.
+
+Evidence: `artifacts/infrabox1/platform-ssh-tofu-deploy-live-20260917.log` and
+`artifacts/infrabox1/platform-ssh-tofu-runtime-20260917.json`. The initial
+`platform-ssh-tofu-deploy-20260917.log` and `platform-ssh-tofu-deploy-retry-20260917.log`
+record controller sandbox failures before any remote changes; deployment then
+ran with approved SSH access and a workspace-local ControlPath directory.
+No discovery workflow, reboot, concurrent-run test or idempotence rerun was
+performed. Learning and rejecting host keys remain for the operator's workflow
+check; no discovery acceptance is claimed.
+
+## Platform persistent SSH trust — 2026-09-17
+
+Local changes in Core and the adjacent `infrabox-platform` repository switch
+discovery to SSH trust on first use (`StrictHostKeyChecking=accept-new`). Core
+initializes a persistent `platform_directory/ssh-trust/known_hosts` only when
+missing and mounts its directory writable with SELinux labeling and mapped
+ownership. CA trust stays read-only. Controller-supplied host-key configuration
+and its generation/restart dependency are removed; old trust is not migrated.
+Unknown keys are accepted on first connection; changed known keys are rejected.
+
+Local validation passed: `site.yml --syntax-check` with
+`inventories/local/hosts.yml`, Python AST parsing of `scripts/discover.py`, and
+`git diff --check` in both repositories. Per the requested scope, tests were not
+edited or run, including concurrent workflow checks. No appliance was contacted
+or deployed to and no workflow was dispatched. Runtime behavior remains for the
+operator to check by rerunning the workflow after deploying the updated role
+and committed Platform source. No new live acceptance is claimed.
+
 ## Personal login MFA repair — 2026-09-16
 
 Read-only diagnostics on `192.168.32.206` (`infrabox1.krglv.com`, selected local

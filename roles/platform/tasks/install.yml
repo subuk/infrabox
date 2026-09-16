@@ -38,6 +38,7 @@
   loop:
     - '{{ platform_directory }}'
     - '{{ platform_directory }}/trust'
+    - '{{ platform_directory }}/ssh-trust'
     - '{{ platform_directory }}/secrets'
     - '{{ platform_storage }}'
     - '{{ platform_build_root }}'

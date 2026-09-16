@@ -29,14 +29,18 @@
     argv: [podman, pull, '{{ openclaw_image }}']
   when: openclaw_image_exists.rc == 1
   changed_when: true
-- name: Require provider credentials to be scoped Vault SecretRefs
+- name: Require Vault credentials or the non-secret local Ollama marker
   ansible.builtin.assert:
     that:
-      - item.value.apiKey is mapping
-      - item.value.apiKey.source == 'exec'
-      - item.value.apiKey.provider == 'vault'
-      - item.value.apiKey.id is match('^openclaw/')
-    fail_msg: Configure model provider API keys as OpenClaw-scoped Vault SecretRefs.
+      - >-
+        (item.key == 'ollama' and item.value.api | default('') == 'ollama'
+         and item.value.apiKey | default('') == 'ollama-local')
+        or
+        (item.value.apiKey | default(none) is mapping
+         and item.value.apiKey.source | default('') == 'exec'
+         and item.value.apiKey.provider | default('') == 'vault'
+         and item.value.apiKey.id | default('') is match('^openclaw/'))
+    fail_msg: Use scoped Vault SecretRefs, or ollama-local for an unauthenticated native Ollama provider.
   loop: '{{ openclaw_model_providers | dict2items }}'
   no_log: true
 - name: Verify the pinned image release label

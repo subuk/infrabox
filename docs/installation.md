@@ -64,7 +64,7 @@ Review these settings in `inventories/local/group_vars/all.yml`:
 | `infrabox_internal_domain` | The private container DNS suffix. The supplied `infrabox.internal` can normally remain; it does not need public DNS records. |
 | `openbao_agent_openbao_address` | Match the internal suffix: `https://openbao.<infrabox_internal_domain>:8200`. This is the Agent's internal endpoint, not the public `vault` URL. |
 | `openbao_tls_enabled` | Keep `true` for the final configuration. Use the explicit temporary overrides in the bootstrap procedure for a new appliance. |
-| `platform_enabled` | The copied development inventory sets this to `true` and references a local source checkout and private known-hosts path. Set it to `false` for installation without Platform, or replace all `platform_*` deployment values using the [Platform guide](platform.md). |
+| `platform_enabled` | The copied development inventory sets this to `true` and references a local source checkout. Set it to `false` for installation without Platform, or replace all `platform_*` deployment values using the [Platform guide](platform.md). |
 | `tpm2_pkcs11_device` | The host TPM resource-manager device, normally `/dev/tpmrm0`. |
 | `tpm2_pkcs11_key_bits` | Set the seal-key size supported by your TPM before initialization. The role default is `4096`; the copied development inventory overrides it to `3072`, so review that value explicitly. |
 

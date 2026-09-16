@@ -128,3 +128,38 @@ A healthy Ansible rerun may make no changes and does not itself guarantee a
 secret reload. The OpenBao service token does not need replacement for this
 rotation. See OpenClaw's [OpenAI provider guide](https://docs.openclaw.ai/providers/openai)
 and [model selection guide](https://docs.openclaw.ai/concepts/models).
+
+## Local Ollama on the LAN
+
+Merge an `ollama` entry into `openclaw_model_providers` alongside existing
+providers. Following the [OpenClaw Ollama documentation](https://docs.openclaw.ai/providers/ollama/configuration),
+use the native endpoint without `/v1` and the non-secret `ollama-local` marker
+for an unauthenticated LAN server. Real credentials still require Vault SecretRefs.
+The role enables the bundled Ollama plugin when this provider is configured.
+
+```yaml
+openclaw_model_providers:
+  ollama:
+    baseUrl: http://192.0.2.10:11434
+    api: ollama
+    apiKey: ollama-local
+    models:
+      - id: qwen3.5:9b
+        name: Qwen 3.5 9B
+        reasoning: true
+        input: [text, image]
+        contextWindow: 262144
+        maxTokens: 8192
+```
+
+Replace the example address and model with your server's values. Check `/api/tags`
+and `/api/show` from the Gateway container before configuring model capabilities.
+The context value describes model metadata, not a verified server memory budget;
+`maxTokens: 8192` is an output budget. Add the server address to `openclaw_no_proxy`
+while preserving its existing entries if outbound proxies are configured.
+
+Apply `agent.yml` with the selected inventory and existing protected inputs as
+above, then repeat it to check stability. Configuration changes restart the
+Gateway. Select `/model ollama/qwen3.5:9b` in a session; adding this provider does
+not change the default model or configure fallback. Native OpenAI hosted web
+search does not become available through Ollama automatically.

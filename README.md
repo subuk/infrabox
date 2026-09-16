@@ -78,8 +78,10 @@ disabled. Follow [identity and access](docs/identity.md) for details.
 
 In Grafana, open **InfraBox / InfraBox Health** after fresh observations arrive.
 For chat, follow [OpenClaw setup](docs/openclaw.md) and configure a
-[model provider](docs/openclaw-providers.md). Enable [Platform](docs/platform.md)
-only after preparing its source and managed-host credentials/trust.
+[model provider](docs/openclaw-providers.md), including a local LAN Ollama server. Enable [Platform](docs/platform.md)
+only after preparing its source and managed-host credentials. Platform remembers
+SSH host keys on first connection and rejects changed keys; adding a managed
+host requires no Ansible run to update SSH trust.
 
 ## Security and recovery
 

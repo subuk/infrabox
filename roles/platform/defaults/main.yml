@@ -12,7 +12,6 @@ platform_interface: ib-platform0
 platform_directory: '{{ infrabox_config_root }}/platform'
 platform_storage: '{{ infrabox_storage_root }}/platform-runner'
 platform_build_root: '{{ infrabox_storage_root }}/platform-build'
-platform_known_hosts_file: ''
 platform_kv_mount: kv
 platform_token_period: 604800
 platform_managed_tag: infrabox-managed

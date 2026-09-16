@@ -20,4 +20,3 @@ tpm2_pkcs11_runtime_gid: 991
 platform_enabled: true
 platform_source: '{{ playbook_dir }}/../infrabox-platform'
 platform_ref: master
-platform_known_hosts_file: '{{ playbook_dir }}/.secrets/infrabox1/platform/known_hosts'
