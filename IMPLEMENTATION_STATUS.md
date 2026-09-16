@@ -6,6 +6,26 @@ and historical evidence are retained intentionally. Use [current documentation](
 for installation and operation. Earlier local-admin-only, mandatory MFA,
 no-dashboard and no-OpenClaw statements do not describe the current product.
 
+## Personal login MFA repair — 2026-09-16
+
+Read-only diagnostics on `192.168.32.206` (`infrabox1.krglv.com`, selected local
+inventory alias `infrabox-krg17`) confirmed that Gitea, Grafana, LLDAP and OpenBao
+were active. The personal account `matvey` had the human identity type and the
+required Gitea/Grafana administrator roles. nginx recorded successful HTTP 200
+LDAP login responses, followed by no token lookup from the login page.
+
+OpenBao still had the legacy `infrabox-humans` MFA enforcement attached to the
+current `ldap-human` mount, contrary to the deployed password-only login flow.
+With explicit operator approval, deleted only that enforcement through the local
+management socket and verified its absence by a second read. The installed
+`identity_openbao` helper already removes this same rule; no code change was
+needed. The origin of the remaining/reintroduced rule was not established.
+Passwords, role memberships and TOTP enrollment were not changed.
+
+Sanitized evidence: `artifacts/infrabox-krg17/login-mfa-repair-20260916.json`.
+Personal browser login awaits the operator's retry; no personal password was
+used and no end-to-end login, deployment, reboot or acceptance suite is claimed.
+
 ## KRG-19 documentation reorganization — 2026-09-16
 
 Reworked the root README as a product/installation entry point and added a
