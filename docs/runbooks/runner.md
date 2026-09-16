@@ -1,5 +1,7 @@
 # Runner execution or history cleanup failure
 
+[Runbook index](../README.md#troubleshooting) · [Operations](../operations.md)
+
 Gitea availability does not prove a runner can execute work. Check runner unit,
 readiness, queue age and the correlated canary run in `svc-monitor/canary`.
 A capacity-one runner may legitimately be busy. Do not dispatch overlapping
@@ -13,5 +15,5 @@ Never run cleanup against another repository or remove active user work.
 
 Repair through the runner/Gitea owning roles. Preserve its isolated network,
 mapped host UID and absence of runtime sockets. A successful correlated canary
-plus new readiness observations verifies recovery; future trusted Platform
-execution requires its own checks and must not reuse generic runner credentials.
+plus new readiness observations verifies recovery; [trusted Platform execution](../platform.md)
+requires its own checks and must not reuse generic runner credentials.

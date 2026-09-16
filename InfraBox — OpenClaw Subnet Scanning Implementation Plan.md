@@ -1,5 +1,10 @@
 # InfraBox — OpenClaw Subnet Scanning
 
+> Implementation contract for fixed probe limits and consent, retained for
+> development reference. Operators should start with
+> [subnet scanning](docs/openclaw.md#optional-subnet-scanning); see
+> [design history](docs/README.md#design-and-implementation-history) for related plans.
+
 This incremental contract extends NetBox conversational onboarding with an
 optional `infrabox_scan_subnet` tool. It supersedes the previous exclusions of
 network scanning and custom OpenClaw plugins only for this bounded capability.

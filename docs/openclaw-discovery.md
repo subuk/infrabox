@@ -1,5 +1,7 @@
 # OpenClaw discovery and NetBox enrichment (KRG-9)
 
+[Documentation index](README.md)
+
 OpenClaw can run the fixed Platform discovery workflow, read native Ansible facts
 and propose corrections to NetBox. The Platform playbook, Ansible pattern input,
 runner, credentials and fact schema are unchanged. NetBox remains the source of

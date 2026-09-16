@@ -1,13 +1,14 @@
 # Platform discovery deployment
 
+[Documentation index](README.md)
+
 [OpenClaw discovery integration](openclaw-discovery.md) can launch this fixed
 workflow and use confirmed proposals to enrich NetBox through its existing MCP.
 
-KRG-6 adds an optional trusted Platform runner and managed Gitea automation
-repository. Live deployment and the Gitea v4 artifact gate have passed on the
-development appliance; managed-host acceptance and remaining checks are tracked
-in IMPLEMENTATION_STATUS.md. No discovery monitoring is
-added. The generic CI runner keeps its existing identity and restrictions.
+Platform provides an optional trusted runner and managed Gitea automation
+repository. Target-specific acceptance and remaining checks are recorded in
+[implementation status](../IMPLEMENTATION_STATUS.md). Discovery does not add a
+recurring monitor. The generic CI runner keeps its independent identity and restrictions.
 
 ## Configure and deploy
 
@@ -40,9 +41,8 @@ source mode remains selected on reruns until the inventory is changed.
 .venv/bin/ansible-playbook -i inventories/local/hosts.yml automation.yml -e @.secrets/infrabox1/inputs.json
 ```
 
-The feature is disabled by default while the upstream repository is being
-initialized. `site.yml` includes it when `platform_enabled` is true. Do not enable
-it against an empty/uncommitted source; prepare a source commit first. This is an
+The feature is disabled by role default. `site.yml` includes it when
+`platform_enabled` is true. Do not enable it against an empty/uncommitted source; prepare a source commit first. This is an
 established-appliance integration, not a replacement for the documented appliance
 bootstrap stages.
 
@@ -127,8 +127,8 @@ trigger an automatic second launch. It saves a sanitized result, run URL and che
 a managed target or require its SSH key. Component verification also checks
 actual scoped OpenBao/NetBox access and network/UID/SELinux/socket isolation.
 
-After that gate passes, run a selected managed-host check (substitute the
-explicitly authorized target's native inventory name):
+For a prepared normal discovery revision, run a selected managed-host check
+(substitute the explicitly authorized target's native inventory name):
 
 ```sh
 .venv/bin/ansible-playbook -i inventories/local/hosts.yml acceptance-platform.yml -e @.secrets/infrabox1/inputs.json -e platform_acceptance_targets=testbox

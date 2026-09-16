@@ -1,5 +1,7 @@
 # Host resource, clock or storage failure
 
+[Runbook index](../README.md#troubleshooting) · [Operations](../operations.md)
+
 Check the affected filesystem's free bytes/inodes and mount source, available
 memory, sustained CPU load, clock synchronization and read-only state. A missing
 expected data mount must not be hidden by an empty directory on rootfs.

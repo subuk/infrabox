@@ -1,6 +1,8 @@
 # InfraBox continuous monitoring
 
-KRG-15 adds continuous checks without model calls. Prometheus owns all thresholds,
+[Documentation index](README.md)
+
+InfraBox runs continuous checks without model calls. Prometheus owns all thresholds,
 recording rules and alert states. Grafana provisions **InfraBox / InfraBox Health**
 using datasource `infrabox-prometheus`. Alertmanager and notification delivery are
 not configured. The dashboard displays pending/firing alerts directly from
@@ -10,7 +12,7 @@ Prometheus and distinguishes service, integration and monitoring coverage failur
 component name. It reads the same rules via the local adapter; it cannot run a
 probe, query arbitrary PromQL, dispatch a job or change infrastructure. The host
 CLI is `python3 /usr/local/libexec/infrabox-monitoring/health.py`. The JSON contract
-is in `schemas/infrabox-health.schema.json`; responses are bounded to 8 KiB and
+is in [the health schema](../schemas/infrabox-health.schema.json); responses are bounded to 8 KiB and
 20 issues. Truncation never changes the overall state.
 
 States are healthy, warning, critical and unknown. Overall precedence is critical,
@@ -146,8 +148,9 @@ and isolation. These short-lived exec sessions are not listed by the Podman
 session API; probe results remain in the normal monitoring observations. See
 [the Podman option contract](https://docs.podman.io/en/v5.8.2/markdown/podman-exec.1.html#no-session).
 
-The future trusted Platform runner and OpenClaw-to-Gitea discovery tools are not
-installed by KRG-15. KRG-6/KRG-9 must add checks when they provision these features.
+The optional [Platform runner](platform.md) and [OpenClaw discovery tools](openclaw-discovery.md)
+have separate provisioning and acceptance checks. Continuous monitoring does
+not schedule managed-host discovery or prove that a discovery run succeeds.
 Model/search availability is based only on observed native events. No paid model
 canary is scheduled; an idle provider is not recently verified, not proven healthy.
 
@@ -177,7 +180,7 @@ It takes the normal canary lock and leaves the configured 12-run / one-hour poli
 unchanged. It deletes only completed history in `svc-monitor/canary`.
 
 
-KRG-17 adds LLDAP unit/health, database TLS and verified LDAPS checks, OIDC issuer
+Central identity monitoring covers LLDAP unit/health, database TLS and verified LDAPS checks, OIDC issuer
 and signing-key availability, native application login links, and protected
 runtime-token file checks. Probes emit fixed reason codes, never credentials.
 Grafana's Viewer monitoring service account and token use the native

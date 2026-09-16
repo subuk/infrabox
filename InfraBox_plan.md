@@ -1,5 +1,14 @@
 # InfraBox MVP — Codex Implementation Plan
 
+> Original MVP implementation contract and historical scope. Current user
+> instructions are in [installation](docs/installation.md) and
+> [architecture](docs/architecture.md). Later accepted work adds central
+> [identity](docs/identity.md), [monitoring dashboards](docs/monitoring.md),
+> [OpenClaw](docs/openclaw.md) and [Platform](docs/platform.md), superseding the
+> local-admin-only, no-dashboard and no-AI exclusions below. Preserve the remaining
+> bootstrap, TPM, PKI and isolation invariants. Historical target addresses are
+> not defaults for a new deployment. See the [documentation map](docs/README.md).
+
 ## 1. Objective
 
 Implement an Ansible repository that turns a clean AlmaLinux 10 host into a single-node InfraBox appliance.

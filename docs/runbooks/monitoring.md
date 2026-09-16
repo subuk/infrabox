@@ -1,5 +1,7 @@
 # Monitoring coverage failure
 
+[Runbook index](../README.md#troubleshooting) · [Operations](../operations.md)
+
 Affected capability: health cannot be established reliably. Unknown is not a
 confirmed application outage, and absence of firing alerts is not success.
 

@@ -1,5 +1,28 @@
 # Implementation status
 
+This is a dated development and acceptance record, not an operator runbook.
+Entries describe the named target and revision; failures, superseded decisions
+and historical evidence are retained intentionally. Use [current documentation](docs/README.md)
+for installation and operation. Earlier local-admin-only, mandatory MFA,
+no-dashboard and no-OpenClaw statements do not describe the current product.
+
+## KRG-19 documentation reorganization — 2026-09-16
+
+Reworked the root README as a product/installation entry point and added a
+purpose-based documentation index. Installation, identity, PKI/security,
+architecture, operations, development and OpenClaw/provider details now live
+under `docs/`; existing Platform, discovery, monitoring and runbooks remain
+linked. Root plans retain historical contracts with explicit current-guide
+pointers. Updated stale MFA, local-account, future-integration and README links.
+
+Changes are Markdown documentation only. Reviewed wording, headings, repository
+paths and internal links by manual/static inspection. Executable validation was
+intentionally not run: no tests, syntax checks, linters, validation scripts,
+playbooks, workflows, deployments or appliance/remote-host access. This entry
+makes no new runtime or acceptance claim.
+
+## Latest runtime checkpoint before documentation work — 2026-09-16
+
 Pre-commit validation on 2026-09-16 passed all 91 Python tests, all 12 Node
 tests and `site.yml --syntax-check` with the selected development inventory.
 The Node socket tests required running outside the controller sandbox, which
@@ -1231,4 +1254,4 @@ Evidence is in `artifacts/infrabox1/web-search-deploy.log`,
 `web-search-idempotence.log`, and `web-search-https-health.json`. Verification
 issued no paid model or hosted-search request and performed no conversational
 acceptance or NetBox inventory write fixture. A real search and its answer
-quality remain operator checks. See [web-search operation](README.md#web-search-through-openai).
+quality remain operator checks. See [web-search operation](docs/openclaw.md#web-search-through-openai).

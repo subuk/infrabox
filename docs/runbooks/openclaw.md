@@ -1,5 +1,7 @@
 # OpenClaw service or integration failure
 
+[Runbook index](../README.md#troubleshooting) · [Operations](../operations.md)
+
 Gateway liveness, native diagnostics, Vault resolution and NetBox MCP access are
 independent checks. A healthy NetBox plus failed MCP authentication normally
 points to the integration identity/token path. A stopped Gateway must remain

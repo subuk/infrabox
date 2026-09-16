@@ -3,8 +3,10 @@
 ## Scope and starting context
 
 This repository deploys a single-node AlmaLinux 10 appliance with Ansible and
-Podman Quadlet. Read [README.md](README.md) for local configuration and bootstrap,
-[InfraBox_plan.md](InfraBox_plan.md) for the implementation contract, and
+Podman Quadlet. Read [README.md](README.md) for the product overview,
+[docs/installation.md](docs/installation.md) for local configuration and bootstrap,
+[InfraBox_plan.md](InfraBox_plan.md) for the original implementation contract
+(with later amendments mapped in [docs/README.md](docs/README.md)), and
 [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) for previously completed
 checks. Historical acceptance results describe a previous deployment; they do
 not prove that a new target is ready or healthy.
@@ -21,8 +23,8 @@ requests do not require contacting or deploying to a host.
 - Never assume the checked-in development host belongs to the current user.
   `ansible.cfg` selects that inventory by default.
 - Create `inventories/local/hosts.yml` and its `group_vars/all.yml` as described
-  in README. Set the target address, SSH user/key, service domain, internal DNS
-  suffix, and TPM parameters for the user's environment.
+  in [the installation guide](docs/installation.md). Set the target address,
+  SSH user/key, service domain, internal DNS suffix, and TPM parameters for the user's environment.
 - Pass `-i inventories/local/hosts.yml` explicitly on Ansible commands. For a
   different inventory, substitute its path consistently. Use `--limit` when an
   inventory contains more hosts than the authorized target set.
@@ -45,7 +47,8 @@ and choices in the selected inventory.
 ## Controller and secret handling
 
 Use the repository `.venv` and pinned `requirements.txt` / `requirements.yml`.
-Install collections into `.ansible/collections` using the README procedure.
+Install collections into `.ansible/collections` using the
+[controller setup procedure](docs/installation.md#controller-setup).
 Generate fresh controller inputs for a new appliance; preserve inputs belonging
 to an existing appliance. The supplied generator preserves an existing file.
 
@@ -66,8 +69,8 @@ to an existing appliance. The supplied generator preserves an existing file.
 
 ## Bootstrap and repair workflow
 
-Use README's complete commands, adding the selected inventory explicitly. For
-a fresh, uninitialized appliance, preserve this order:
+Use the [installation guide](docs/installation.md) commands with the selected
+inventory explicitly. For a fresh, uninitialized appliance, preserve this order:
 
 1. Configure local inventory and protected controller inputs.
 2. Run `foundation.yml`, repeat it to check stability, then
@@ -124,8 +127,10 @@ Ansible so a rerun and reboot preserve them.
   runtime sockets. Jobs may reach Gitea/NetBox HTTPS; backend databases, Redis,
   management ports, Vault, and Grafana remain restricted. The MVP runner supports
   shell/Git in its own container; Docker execution and Node actions are absent.
-- Retain local administrator accounts, Gitea SSH on port 2222, and monitoring
-  without dashboards unless the user requests a scope change.
+- Preserve the current [central identity model](docs/identity.md), including the
+  technical administrator and separate service identities, Gitea SSH on port
+  2222, and the provisioned [health dashboard](docs/monitoring.md). These accepted
+  extensions supersede the original local-admin-only/no-dashboard MVP scope.
 - Some paths and network rules are currently fixed in helpers/templates. Review
   all consumers before changing storage paths, UIDs, internal names, or the
   runner subnet; changing one inventory variable may be insufficient.

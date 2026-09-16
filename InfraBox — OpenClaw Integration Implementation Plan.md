@@ -1,5 +1,11 @@
 # InfraBox — OpenClaw Integration Implementation Plan
 
+> Implementation contract for the initial Gateway integration, retained for
+> development reference. Use the current [OpenClaw guide](docs/openclaw.md) for
+> setup and operations. Later NetBox, scanning, search, monitoring and discovery
+> integrations extend the initial tool scope; the independent scoped-token and
+> certificate-Agent boundaries remain. See [design history](docs/README.md#design-and-implementation-history).
+
 ## 1. Objective
 
 Extend the already implemented InfraBox MVP with OpenClaw.

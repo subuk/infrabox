@@ -1,5 +1,7 @@
 # Service or dependency failure
 
+[Runbook index](../README.md#troubleshooting) · [Operations](../operations.md)
+
 Affected capability is named in the check summary. A unit, HTTPS interface,
 application dependency and OpenClaw integration are separate observations.
 
@@ -43,17 +45,9 @@ single technical `svc-identity-admin` with `infrabox:grafana:admin`. Ansible pre
 existing passwords, membership and healthy runtime tokens. A removed central
 service role causes provisioning to fail rather than restoring the membership.
 After changing a service password, update its private controller input before
-running its owning role. New human identities are created by OpenBao on first LDAP login; do not run
-`identity.yml` for user additions. The login page at `https://vault.<domain>/login/`
-collects a missing email/display name and permits later profile edits. These are
-user-owned OpenBao metadata, separate from LLDAP. LDAP alias metadata supplies the
-login and native external groups supply roles; editable profile keys never grant
-permissions. The self-profile policy permits only read/update of the caller's own
-entity metadata. It cannot list other identities, edit aliases/policies, rename
-entities, or change disabled status. Self-declared email is not marked verified,
-and Gitea automatic account linking stays disabled. Ansible preserves existing
-entities and profiles; LDAP deletion/type changes reject new logins, while existing
-tokens and application sessions must be revoked separately when required.
+running its owning role. For personal account creation, first login and self-service profile behavior,
+see [Identity and access](../identity.md). LDAP deletion/type changes reject new
+logins; existing tokens and application sessions require separate revocation.
 
 | Central role | Native permission | Grant/removal takes effect |
 | --- | --- | --- |

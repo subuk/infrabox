@@ -1,5 +1,11 @@
 # KRG-15 — Repository assessment and implementation plan
 
+> Implementation design and acceptance contract, retained for development
+> reference. Use [monitoring operations](docs/monitoring.md) for current runtime
+> details, including later central-identity and MCP transport changes. Historical
+> acceptance belongs in [implementation status](IMPLEMENTATION_STATUS.md), not
+> in assumptions about a new host. See the [documentation map](docs/README.md).
+
 Date: 2026-09-12. Status: implemented; actual deployment and acceptance evidence
 is recorded in `IMPLEMENTATION_STATUS.md`. The assessment below preserves the
 initial plan; the final section records changes established by runtime validation.
