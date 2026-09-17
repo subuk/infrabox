@@ -6,6 +6,24 @@ and historical evidence are retained intentionally. Use [current documentation](
 for installation and operation. Earlier local-admin-only, mandatory MFA,
 no-dashboard and no-OpenClaw statements do not describe the current product.
 
+## Restore OpenAI Codex runtime plugin — 2026-09-17
+
+The operator reported that selecting `openai/gpt-5.6-sol` failed because no
+enabled plugin provided the required `codex` harness. The managed template enabled
+`openai` but omitted `codex`; earlier deployment health checks did not establish
+successful model selection. Enable the bundled Codex plugin alongside configured
+OpenAI providers, preserving Ollama and existing credentials.
+
+All 92 local unit tests and development `site.yml` syntax-check passed. Applied
+only `agent.yml --tags openclaw_provider_config` with the explicit development
+inventory, limit `infrabox1` (`192.168.32.206`) and existing protected inputs:
+`ok=4 changed=2 unreachable=0 failed=0`. This path rendered the configuration
+and restarted Gateway without secret audits or broader integration checks.
+An immediate health check hit connection refused during startup; the bounded
+retry returned HTTP 200. Targeted plugin status confirmed `codex`, `openai`, and
+`ollama` all enabled and loaded. No model inference or UI selection was performed.
+Evidence: `artifacts/infrabox1/openclaw-codex-enable-20260917.log`.
+
 ## LAN Ollama provider — 2026-09-17
 
 Added `ollama/qwen3.5:9b` alongside OpenAI on the existing development appliance

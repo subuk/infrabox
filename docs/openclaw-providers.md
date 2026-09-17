@@ -119,6 +119,9 @@ Apply the configuration from the controller:
 Open `https://claw.infrabox.example.com`, authenticate with the Gateway token,
 and select `openai/gpt-6-astra` for the chat session using the model picker or
 `/model openai/gpt-6-astra`. Send a short message to verify an actual provider call.
+The role enables both `openai` and its bundled `codex` runtime plugin when the
+OpenAI provider is configured. The native runtime is required by eligible OpenAI
+model routes; enabling only the provider plugin is insufficient.
 Adding a provider alone does not set the agent's default model. Keep configuration
 changes in Ansible because the deployed `openclaw.json` is read-only.
 
@@ -163,3 +166,9 @@ above, then repeat it to check stability. Configuration changes restart the
 Gateway. Select `/model ollama/qwen3.5:9b` in a session; adding this provider does
 not change the default model or configure fallback. Native OpenAI hosted web
 search does not become available through Ollama automatically.
+
+For a provider-only configuration change, use the same `agent.yml` command with
+`--tags openclaw_provider_config`. This renders the managed Gateway JSON and
+restarts the Gateway if it changed, without running integration or secret audits.
+This path assumes an already provisioned appliance; environment, image and
+credential changes still need their corresponding lifecycle tasks.

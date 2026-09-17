@@ -23,6 +23,8 @@ class WebSearchConfigurationTests(unittest.TestCase):
                     openclaw_netbox_url='https://netbox.infrabox.example.com',
                     openclaw_model_providers={**({'openai': {'api': 'openai-responses'}} if openai else {}),
                         **({'ollama': {'api': 'ollama', 'apiKey': 'ollama-local'}} if ollama else {})}))
+                self.assertEqual('codex' in config['plugins']['allow'], openai)
+                self.assertEqual(config['plugins']['entries'].get('codex', {}).get('enabled', False), openai)
                 self.assertEqual('ollama' in config['plugins']['allow'], ollama)
                 self.assertEqual(config['plugins']['entries'].get('ollama', {}).get('enabled', False), ollama)
                 tools = config['tools']
