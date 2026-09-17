@@ -162,6 +162,26 @@ before deleting the superseded object. Config Context and device/VM local contex
 may be updated after confirmation; proposals explain effects on future Ansible
 runs and preserve unrelated keys. Credentials belong in OpenBao, not context.
 
+The single model-independent `netbox-onboarding` skill routes requests first:
+**Inspect / Query** reads existing NetBox records; **Inventory Onboarding**
+proposes additions/corrections; **Network Scan** probes an approved IPv4 subnet;
+**Ansible Discovery** collects facts from explicit known NetBox hosts. "Inspect"
+means NetBox and "discovery" means Ansible. Composite requests keep independent
+scan approval and NetBox proposal confirmations. Detailed instructions under the
+skill's `references/` directory are read only for the relevant action.
+
+For an established Gateway, deploy only the managed skill files with:
+
+```sh
+.venv/bin/ansible-playbook -i inventories/local/hosts.yml agent.yml \
+  --tags openclaw_skills -e @.secrets/infrabox1/inputs.json
+```
+
+Substitute the selected inventory and its protected inputs. This copies the skill
+and references and restarts Gateway if they changed; it does not provision a new
+installation. Start a new chat after updating to avoid old instructions already
+present in a conversation's history.
+
 To use the workflow:
 
 1. Configure a model provider using an OpenBao SecretRef in the [provider guide](openclaw-providers.md).

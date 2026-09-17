@@ -83,6 +83,11 @@ only after preparing its source and managed-host credentials. Platform remembers
 SSH host keys on first connection and rejects changed keys; adding a managed
 host requires no Ansible run to update SSH trust.
 
+In OpenClaw, **Inspect / Query** reads NetBox, **Network Scan** probes an approved
+subnet, and **Ansible Discovery** collects facts from known hosts. Inventory writes
+require a confirmed proposal. See [Gateway setup](docs/openclaw.md) for workflows
+and the `openclaw_skills` tag for updating only the managed skill files.
+
 ## Security and recovery
 
 Keep protected controller inputs, the initial OpenBao root token and recovery

@@ -20,6 +20,7 @@
     - '{{ openclaw_storage_dir }}/state'
     - '{{ openclaw_storage_dir }}/workspace'
 - name: Create managed onboarding skill and workspace discovery directories
+  tags: [openclaw_skills]
   ansible.builtin.file:
     path: '{{ item }}'
     state: directory
@@ -31,12 +32,14 @@
     - '{{ openclaw_storage_dir }}/workspace/skills'
   when: openclaw_netbox_enabled | bool
 - name: Deliver managed NetBox onboarding skill
+  tags: [openclaw_skills]
   ansible.builtin.copy:
-    src: netbox-onboarding/SKILL.md
-    dest: '{{ openclaw_config_dir }}/skills/netbox-onboarding/SKILL.md'
+    src: netbox-onboarding/
+    dest: '{{ openclaw_config_dir }}/skills/netbox-onboarding/'
     owner: '{{ openclaw_uid }}'
     group: '{{ openclaw_gid }}'
     mode: '0400'
+    directory_mode: '0700'
   when: openclaw_netbox_enabled | bool
   notify: Restart openclaw
 - name: Discover the backend bridge gateway used by nginx

@@ -6,6 +6,109 @@ and historical evidence are retained intentionally. Use [current documentation](
 for installation and operation. Earlier local-admin-only, mandatory MFA,
 no-dashboard and no-OpenClaw statements do not describe the current product.
 
+## KRG-20 explicit artifact fact retrieval — 2026-09-17
+
+At the operator's request, improved only the skill's instructions for reading
+facts from an existing discovery run. The entrypoint routes result requests to
+the discovery reference without a new dispatch. That reference now gives exact
+status/result call examples, distinguishes request/run/artifact IDs, selects an
+available unexpired attempt, and explains that the first result is only a host
+summary. Actual facts require a second result call using the returned host type
+and NetBox ID. Paging uses the returned JSON pointers and next_offset; expanded
+objects, scalar truncation and failed retrieval remain explicit. Session history,
+tools and plugin responses were not changed.
+
+Skill frontmatter, reference links, example JSON/allowed argument fields and
+whitespace checks passed. Applied only `agent.yml --tags openclaw_skills` to
+development `infrabox1` (`192.168.32.206`) with explicit inventory, existing
+protected inputs and SSH host-key checking: `ok=4 changed=2 unreachable=0 failed=0`.
+Gateway restarted; readiness returned HTTP 200. All six deployed files matched
+local hashes and were readable by UID 1000; OpenClaw reported the expected managed
+skill as eligible and model-visible. Evidence:
+`artifacts/infrabox1/krg20-fact-retrieval-deploy-20260917.log` and
+`artifacts/infrabox1/krg20-fact-retrieval-installed-20260917.json`.
+No model evaluation, live artifact retrieval, workflow dispatch, NetBox writes or
+full regression was run. Conversational evaluation remains with the operator.
+
+## KRG-20 discovery does not write inventory — 2026-09-17
+
+The operator reported that the model assumed Ansible discovery might have updated
+NetBox. Added an explicit rule to the entrypoint and discovery reference: the
+fixed workflow reads inventory, gathers facts and publishes a Gitea artifact;
+it never writes NetBox. Collection success does not establish inventory changes.
+Claims of applied enrichment require a separately confirmed `netbox_write` and
+readback. Clarified that `infrabox_discovery_result` retrieves the artifact itself:
+first read the host summary, then select a successful host for actual facts.
+
+Skill frontmatter, reference links and whitespace checks passed. Applied only
+`agent.yml --tags openclaw_skills` to development `infrabox1` (`192.168.32.206`)
+with explicit inventory, existing protected inputs and SSH host-key checking:
+`ok=4 changed=2 unreachable=0 failed=0`. Gateway restarted and readiness returned
+HTTP 200. All six deployed files were readable by container UID 1000 with matching
+hashes and private modes; the expected managed skill was eligible and model-visible.
+Evidence: `artifacts/infrabox1/krg20-discovery-readonly-deploy-20260917.log` and
+`artifacts/infrabox1/krg20-discovery-readonly-installed-20260917.json`.
+No model calls, workflow dispatch, NetBox writes, full regression or new tools
+were introduced or run. Conversational evaluation remains with the operator.
+
+## KRG-20 factual grounding and pagination follow-up — 2026-09-17
+
+The operator reported that Qwen returned five real NetBox device names and
+invented seven more after seeing a total count of twelve. Added a shared rule
+directly to the skill entrypoint for every workflow: facts must come from actual
+tool results or explicit user statements, with their sources distinguished.
+Missing/truncated/failed data stays unknown; names, IDs, relationships, citations,
+approvals and action success must not be invented. Proposed values/placeholders
+remain explicitly proposed and subject to confirmation. Lists follow supported
+pagination under the same filters; counts cannot supply unseen record contents.
+Incomplete retrieval is reported even for a names-only request.
+
+Skill frontmatter, reference links and whitespace checks passed. Applied only
+`agent.yml --tags openclaw_skills` to development `infrabox1` (`192.168.32.206`)
+with explicit inventory, preserved inputs and SSH host-key checking:
+`ok=4 changed=2 unreachable=0 failed=0`. Gateway restarted and readiness returned
+HTTP 200. Container UID 1000 could read all six skill files with matching hashes;
+OpenClaw reported the expected skill path, eligible and model-visible. The updated
+entrypoint is 6,507 bytes. Evidence: `artifacts/infrabox1/krg20-grounding-deploy-20260917.log`
+and `artifacts/infrabox1/krg20-grounding-installed-20260917.json`.
+No full suite, model calls or conversational evaluation were run; the operator
+will assess whether the prompt resolves the reported behavior in a new chat.
+
+## KRG-20 skill routing and progressive references — 2026-09-17
+
+Refactored the single model-independent `netbox-onboarding` skill from 15,495 to
+4,693 bytes in its entrypoint, with detailed inventory, scanning, discovery,
+migration and provenance rules in five selectively loaded references. The
+operator's terminology is explicit: Inspect/Query reads NetBox; Ansible Discovery
+collects facts through the fixed Platform workflow; Network Scan probes a subnet.
+Composite requests retain stage-specific authorization and confirmed NetBox
+writes. Existing conflict, deletion, provenance and retry rules were retained.
+The old skill's verified-host-trust wording was aligned with the already deployed
+Platform persistent TOFU behavior; no runtime SSH trust settings were changed.
+
+Added `agent.yml --tags openclaw_skills` to deliver the complete skill directory
+and invoke the existing restart handler only when content changes. The existing
+workspace read-only mount and allowed `read` tool cover all reference files.
+Updated README and Gateway instructions, including starting a new chat to avoid
+prior skill instructions retained in conversation history.
+
+Minimal validation passed: skill frontmatter validator, local reference checks,
+`agent.yml` syntax-check and selected-task inspection with development inventory,
+and whitespace checks. Applied only the skills tag to development `infrabox1`
+(`192.168.32.206`) with preserved inputs and SSH host-key checking:
+`ok=4 changed=2 unreachable=0 failed=0`; Gateway restart completed.
+Post-deployment verification as container UID 1000 read all six files, matched
+their SHA-256 hashes and private file modes, verified workspace-only read access,
+and confirmed the managed skill path, `eligible=true`, `modelVisible=true`,
+`disabled=false`, and Gateway readiness HTTP 200.
+
+Evidence: `artifacts/infrabox1/krg20-skills-deploy-20260917.log` and
+`artifacts/infrabox1/krg20-skills-installed-20260917.json`. No full test suite,
+regression/acceptance, model calls, scans, discovery dispatches, NetBox writes or
+non-development deployment were performed. Model behavior remains for operator
+evaluation; file delivery/registration checks do not establish conversational
+acceptance.
+
 ## Restore OpenAI Codex runtime plugin — 2026-09-17
 
 The operator reported that selecting `openai/gpt-5.6-sol` failed because no
