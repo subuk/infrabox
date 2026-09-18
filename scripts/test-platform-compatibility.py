@@ -40,7 +40,7 @@ def verify_discovery_archive(data, revision, run_id, expected):
         names = archive.namelist()
         if len(names) != len(set(names)) or not {'summary.md', 'run.json'} <= set(names):
             raise GateError('Missing or duplicate discovery report')
-        if any(name not in ('summary.md', 'run.json') and not re.fullmatch(r'facts/(device|vm)-[1-9][0-9]*\.json', name)
+        if any(name not in ('summary.md', 'run.json') and not re.fullmatch(r'(facts|dmi)/(device|vm)-[1-9][0-9]*\.json', name)
                for name in names):
             raise GateError('Unexpected discovery artifact file')
         if sum(item.file_size for item in archive.infolist()) > 32 * 1024 * 1024:
@@ -147,6 +147,19 @@ def run(c, report):
         verify_archive(data, revision)
     else:
         report.update(verify_discovery_archive(data, revision, run_id, expected))
+        compact = [a for a in artifacts if not a['expired'] and a['name'].startswith(f'reconciliation-{run_id}-')]
+        if len(compact) != 1:
+            raise GateError('Expected one compact reconciliation artifact')
+        payload = request(repo + '/actions/artifacts/' + str(compact[0]['id']) + '/zip', binary=True)
+        with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+            if archive.namelist() != ['reconciliation-summary.json'] or archive.infolist()[0].file_size > 8 * 1024 * 1024:
+                raise GateError('Invalid compact artifact')
+            result = json.loads(archive.read('reconciliation-summary.json'))
+        if result.get('schema_version') != 2 or str(result['run_id']) != str(run_id) or result['revision'] != revision:
+            raise GateError('Reconciliation attribution mismatch')
+        if expected == 'success' and result['outcome'] != 'success':
+            raise GateError('Collection succeeded but reconciliation failed')
+        report['reconciliation_counts'] = result['counts']
     report.update(outcome='passed', stage='complete', artifact_id=artifact_id,
                   checks=['manual_dispatch', 'exact_sha_checkout', 'artifact_upload_and_download'])
 

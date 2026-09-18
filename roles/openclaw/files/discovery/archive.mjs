@@ -19,7 +19,7 @@ export function readZip(buffer) {
   }
   if (end<0 || buffer.readUInt16LE(end+4) || buffer.readUInt16LE(end+6)) fail();
   const count=buffer.readUInt16LE(end+10), size=buffer.readUInt32LE(end+12), start=buffer.readUInt32LE(end+16);
-  if (count<2 || count>258 || count!==buffer.readUInt16LE(end+8) || start+size!==end) fail();
+  if (count!==1 || count!==buffer.readUInt16LE(end+8) || start+size!==end) fail();
   let cursor=start, total=0;
   const files=new Map(), ranges=[];
   for (let i=0;i<count;i++) {
@@ -30,7 +30,7 @@ export function readZip(buffer) {
     const mode=buffer.readUInt32LE(cursor+38)>>>16, local=buffer.readUInt32LE(cursor+42);
     if (cursor+46+nameLength+extra+comment>end || flags & ~0x808 || ![0,8].includes(method) || (mode & 0xf000)===0xa000) fail();
     const name=buffer.subarray(cursor+46,cursor+46+nameLength).toString('utf8');
-    if (!/^(run\.json|summary\.md|facts\/(device|vm)-[1-9][0-9]*\.json)$/.test(name) || files.has(name)) fail();
+    if (!/^reconciliation-summary\.json$/.test(name) || files.has(name)) fail();
     total+=length;
     if (length>8*1024*1024 || total>MAX_ARCHIVE || local+30>start || buffer.readUInt32LE(local)!==0x04034b50) fail();
     const dataStart=local+30+buffer.readUInt16LE(local+26)+buffer.readUInt16LE(local+28), dataEnd=dataStart+compressed;
@@ -44,57 +44,39 @@ export function readZip(buffer) {
     files.set(name,data);
     cursor+=46+nameLength+extra+comment;
   }
-  if (cursor!==end || !files.has('run.json') || !files.has('summary.md')) fail();
+  if (cursor!==end || !files.has('reconciliation-summary.json')) fail();
   return files;
 }
 const statuses=['succeeded','failed','unreachable','not_completed'];
 export function validateArtifact(files, record, attempt) {
-  const m=JSON.parse(files.get('run.json').toString('utf8'));
-  if (String(m.run_id)!==String(record.run_id) || String(m.attempt)!==String(attempt) || m.revision!==record.revision ||
-      m.pattern!==record.pattern || !Array.isArray(m.hosts) || m.hosts.length>256 ||
-      !['success','partial_failure','collection_failed','no_targets','inventory_failed','dependency_failed','timeout','result_export_failed'].includes(m.outcome) ||
-      !Number.isFinite(Date.parse(m.started_at)) || !Number.isFinite(Date.parse(m.finished_at)) || Date.parse(m.finished_at)<Date.parse(m.started_at) ||
-      !Number.isInteger(m.ansible_return_code)) fail();
-  const requested=new Map(record.hosts.map(h=>[`${h.object_type}-${h.object_id}`,h.name]));
-  const seen=new Set(), facts=new Map(), expectedFiles=new Set(['run.json','summary.md']);
-  const counts={selected:m.hosts.length,...Object.fromEntries(statuses.map(s=>[s,0]))};
-  for (const host of m.hosts) {
-    const key=`${host.object_type}-${host.object_id}`, file=`facts/${key}.json`;
-    if (!['device','vm'].includes(host.object_type) || !Number.isSafeInteger(host.object_id) || host.object_id<1 ||
-        !requested.has(key) || requested.get(key)!==host.name || seen.has(key) || host.file!==file || !statuses.includes(host.status)) fail();
-    seen.add(key); counts[host.status]++;
-    if (files.has(file)) {
-      expectedFiles.add(file);
-      const value=JSON.parse(files.get(file).toString('utf8'));
-      if (!value || typeof value!=='object' || Array.isArray(value) || Object.keys(value).some(k=>/^(ansible_env|ansible_local|env|local|facter|ohai)$|^(facter_|ohai_)/.test(k))) fail();
-      // Failed hosts may retain native facts, but never expose these as verified.
-      if (host.status==='succeeded') facts.set(key,value);
-    } else if (host.status==='succeeded') fail();
+  const m=JSON.parse(files.get('reconciliation-summary.json').toString('utf8'));
+  if(m.schema_version!==2 || String(m.run_id)!==String(record.run_id) || String(m.attempt)!==String(attempt) ||
+    m.revision!==record.revision || m.pattern!==record.pattern || !Array.isArray(m.hosts) || m.hosts.length>256 ||
+    !['success','failed'].includes(m.outcome) || !Number.isFinite(Date.parse(m.started_at)) ||
+    !Number.isFinite(Date.parse(m.finished_at)) || Date.parse(m.finished_at)<Date.parse(m.started_at) || !Number.isInteger(m.ansible_return_code))fail();
+  const requested=new Map(record.hosts.map(h=>[`${h.object_type}-${h.object_id}`,h.name])), seen=new Set();
+  const counts={selected:m.hosts.length,collected:0,reconciled:0,changed:0,unchanged:0,warning:0,failed:0,unreachable:0};
+  for(const h of m.hosts){
+    const key=`${h.object_type}-${h.object_id}`;
+    if(!requested.has(key) || requested.get(key)!==h.name || seen.has(key) || !statuses.includes(h.status) ||
+      !['succeeded','failed','skipped'].includes(h.reconciliation_status) ||
+      !Array.isArray(h.changes) || !Array.isArray(h.warnings) || !Array.isArray(h.errors) ||
+      (h.status!=='succeeded' && h.reconciliation_status!=='skipped') ||
+      Object.keys(h).some(k=>!['name','object_type','object_id','status','reconciliation_status','changes','warnings','errors','provenance_changed'].includes(k)) ||
+      h.changes.length>8192 || h.warnings.length>8192 || h.errors.length>32 ||
+      h.warnings.some(v=>typeof v!=='string' || v.length>512) || h.errors.some(v=>typeof v!=='string' || v.length>128) ||
+      h.changes.some(c=>!c || Object.keys(c).some(k=>!['object','id','fields','created'].includes(k)) ||
+        !['device','vm','platform','manufacturer','interface','mac','ip','module_bay','module_type','module','virtual_disk'].includes(c.object) ||
+        !Number.isSafeInteger(c.id) || c.id<1 || !Array.isArray(c.fields) || c.fields.length>32 ||
+        c.fields.some(f=>typeof f!=='string' || !/^[a-z_]{1,64}$/.test(f))))fail();
+    seen.add(key);
+    counts.collected+=h.status==='succeeded'; counts.reconciled+=h.reconciliation_status==='succeeded';
+    counts.changed+=h.changes.length>0; counts.unchanged+=h.reconciliation_status==='succeeded' && !h.changes.length;
+    counts.warning+=h.warnings.length>0; counts.failed+=h.status!=='succeeded' || h.reconciliation_status==='failed';
+    counts.unreachable+=h.status==='unreachable';
   }
-  if (Object.keys(m.counts??{}).length!==5 || Object.entries(counts).some(([k,v])=>m.counts[k]!==v) ||
-      [...files.keys()].some(f=>!expectedFiles.has(f))) fail();
+  if(Object.keys(m.counts??{}).length!==8 || Object.entries(counts).some(([k,v])=>m.counts[k]!==v))fail();
   const selectionComplete=seen.size===requested.size;
-  if (m.outcome==='success' && (!selectionComplete || !counts.selected || counts.succeeded!==counts.selected || m.ansible_return_code!==0)) fail();
-  return {manifest:m,facts,selectionComplete,missing:record.hosts.filter(h=>!seen.has(`${h.object_type}-${h.object_id}`))};
-}
-export function factPage(facts, pointer='', offset=0) {
-  if (typeof pointer!=='string' || pointer.length>1024 || (pointer && !pointer.startsWith('/')) || /~(?![01])/.test(pointer) || !Number.isSafeInteger(offset) || offset<0) throw new DiscoveryError('Invalid facts pointer or offset');
-  let value=facts;
-  for (const raw of pointer ? pointer.slice(1).split('/') : []) {
-    const key=raw.replace(/~1/g,'/').replace(/~0/g,'~');
-    if (!value || typeof value!=='object' || !Object.hasOwn(value,key)) throw new DiscoveryError('Facts pointer not found');
-    value=value[key];
-  }
-  const preview=v=>{
-    if (typeof v==='string' && v.length>4096) return {preview:v.slice(0,4096),truncated:true};
-    if (v && typeof v==='object' && Buffer.byteLength(JSON.stringify(v))>4096) return {expand:true,type:Array.isArray(v)?'array':'object',count:Object.keys(v).length};
-    return {value:v};
-  };
-  if (!value || typeof value!=='object') return {pointer,...preview(value),next_offset:null};
-  const keys=Object.keys(value), entries=keys.slice(offset,offset+10).map(key=>{
-    const child=pointer+'/'+key.replace(/~/g,'~0').replace(/\//g,'~1');
-    if(child.length>1024)return {key_preview:key.slice(0,256),key_truncated:true,value_omitted:true};
-    return {key,pointer:child,...preview(value[key])};
-  });
-  return {pointer,entries,total:keys.length,next_offset:offset+entries.length<keys.length?offset+entries.length:null};
+  if(m.outcome==='success' && (!selectionComplete || !counts.selected || counts.failed || counts.reconciled!==counts.selected || m.ansible_return_code!==0))fail();
+  return {manifest:m,selectionComplete,missing:record.hosts.filter(h=>!seen.has(`${h.object_type}-${h.object_id}`))};
 }

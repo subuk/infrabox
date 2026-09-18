@@ -41,6 +41,9 @@ def build(c):
         ('host_contract','host','host','Host storage, security or clock contract failed',''),
     ]:
         add(cid, comp, adapter, summary, interval=60, integration=integ)
+    if c.get('platform'):
+        add('discovery_state','runner','discovery','Discovery run observations unavailable',60,integration='netbox')
+        add('discovery_result','runner','derived','Discovery collection, reconciliation or publication failed',60,expr='infrabox_discovery_workflow_success',warn='< 1',hold='0s')
     if c['netbox']:
         add('openclaw_netbox','openclaw','mcp','OpenClaw cannot read NetBox through its MCP runtime',60,integration='netbox')
     if c['canary']:
@@ -73,7 +76,7 @@ def build(c):
                 metric = 'node_filesystem_avail_bytes' if cid=='host_disk' else 'node_filesystem_files_free' if cid=='host_inodes' else 'node_memory_MemAvailable_bytes' if cid=='host_memory' else 'node_cpu_seconds_total'
                 freshness='min(timestamp('+metric+'))'
             else:
-                parent='postgresql_query' if cid.startswith('postgresql_') else 'redis_ping' if cid.startswith('redis_') else 'netbox_worker' if cid=='netbox_queue' else 'https_'+cid.removeprefix('certificate_')
+                parent='discovery_state' if cid=='discovery_result' else 'postgresql_query' if cid.startswith('postgresql_') else 'redis_ping' if cid.startswith('redis_') else 'netbox_worker' if cid=='netbox_queue' else 'https_'+cid.removeprefix('certificate_')
                 freshness='infrabox_probe_last_completed_timestamp_seconds{check_id="'+parent+'"}'
             fail='(' + expr + ') ' + (ch['warn'] or ch['crit'])
             obs.append({'record':'infrabox:raw_failure','expr':'(count('+fail+') or vector(0))','labels':labels})
@@ -93,7 +96,7 @@ def build(c):
         if check['adapter']=='native':continue
         cid=check['id']
         if check['adapter']=='derived':
-            cid='postgresql_query' if cid.startswith('postgresql_') else 'redis_ping' if cid.startswith('redis_') else 'netbox_worker' if cid=='netbox_queue' else 'https_'+cid.removeprefix('certificate_')
+            cid='discovery_state' if cid=='discovery_result' else 'postgresql_query' if cid.startswith('postgresql_') else 'redis_ping' if cid.startswith('redis_') else 'netbox_worker' if cid=='netbox_queue' else 'https_'+cid.removeprefix('certificate_')
         rule['expr']+=' and on() (count(infrabox_probe_generation{check_id="'+cid+'",generation="'+generation+'"}) > 0)'
     expected='infrabox_check_expected' 
     fresh='(time() - infrabox:observation <= on(check_id) infrabox_check_max_age_seconds) and on(check_id) (time() - infrabox:observation >= -5)'

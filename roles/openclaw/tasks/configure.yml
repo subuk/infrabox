@@ -58,6 +58,7 @@
     mode: '0600'
   notify: Restart openclaw
 - name: Render protected Gateway environment
+  tags: [openclaw_provider_config]
   ansible.builtin.template:
     src: openclaw.env.j2
     dest: '{{ openclaw_config_dir }}/openclaw.env'

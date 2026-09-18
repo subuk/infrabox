@@ -149,8 +149,8 @@ session API; probe results remain in the normal monitoring observations. See
 [the Podman option contract](https://docs.podman.io/en/v5.8.2/markdown/podman-exec.1.html#no-session).
 
 The optional [Platform runner](platform.md) and [OpenClaw discovery tools](openclaw-discovery.md)
-have separate provisioning and acceptance checks. Continuous monitoring does
-not schedule managed-host discovery or prove that a discovery run succeeds.
+have separate provisioning and acceptance checks. Monitoring observes recorded
+run outcomes; it does not schedule managed-host discovery.
 Model/search availability is based only on observed native events. No paid model
 canary is scheduled; an idle provider is not recently verified, not proven healthy.
 
@@ -190,3 +190,10 @@ administrator through verified LDAP; the runtime monitor receives only its
 Viewer token. The helper checks native identity and datasource access before
 KV/file publication and retirement of old tokens. It refuses conflicting roles.
 No application user or token is created by writing Grafana database tables.
+
+KRG-21 adds passive Platform discovery observations to the existing catalog:
+`discovery_state` checks readable runner state, while `discovery_result` reflects
+collection/reconciliation/publication success. `infrabox_discovery_*` metrics expose
+last run and successful reconciliation timestamps, running status, failed/unreachable
+hosts and reconciliation/API/auth failures. This does not schedule discovery or
+make model calls. See the [reconciliation contract](discovery-reconciliation.md).

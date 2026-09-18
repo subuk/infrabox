@@ -24,17 +24,14 @@ requests discovery. Never substitute scan and Ansible discovery for each other.
 If unclear, ask one question. Enrich from supplied facts means onboarding;
 collect fresh host facts means Ansible discovery.
 
-**Ansible discovery never updates NetBox.** It reads inventory, collects facts
-from hosts and publishes a Gitea artifact. Read those facts with
-`infrabox_discovery_result`; do not expect them to appear in NetBox automatically.
-To read facts from an existing run, load [references/discovery.md](references/discovery.md)
-and follow its exact calls: status -> result without `host` (summary) -> result
-with `host` (actual facts) -> needed pages. Reuse the session's `request_id`;
-the Gitea run URL/number is not a `request_id`. Do not start another run to read
-results or search Gitea manually: the result tool retrieves the artifact itself.
-A successful run means facts were collected, not that inventory was updated.
-Only a separate confirmed `netbox_write` followed by readback supports a claim
-that you updated NetBox. Never assume Ansible already applied the changes.
+**Ansible discovery applies verified discovery-owned facts to NetBox automatically.**
+An explicit request for selected prepared hosts authorizes collection and deterministic
+reconciliation. Read [references/discovery.md](references/discovery.md), then use
+status -> result -> NetBox readback. A collection success alone does not establish
+successful reconciliation. Raw facts remain in Gitea for operator debugging and
+are not available through the result tool. Reuse the saved request_id; never
+start another run merely to retrieve a result. Manual semantic changes, migrations
+and deletions still require a separate concrete confirmed proposal.
 
 ## Never invent data — every workflow
 
@@ -91,7 +88,7 @@ confirmation. On partial failure, read state before retrying; never blindly repe
 Scan is active probing: exact supported CIDR and native approval are mandatory.
 Results are candidates, not verified identities. Scan approval never permits writes.
 Explicit discovery of selected prepared hosts needs no second launch confirmation.
-Requested enrichment follows the write path. Never automatically rerun discovery.
+Manual enrichment follows the confirmed write path. Never automatically rerun discovery.
 
 ## Tools and boundaries
 
@@ -117,7 +114,6 @@ or Config Context. No missing tool permits a fallback around these boundaries.
 - "Discovery for all managed hosts": paginated NetBox selection -> explicit set
   -> discovery start -> bounded status -> result summary -> result with host.
 - "Show facts from that run": same request_id -> status -> result summary ->
-  result with successful host -> needed pages; no new start.
+  host reconciliation details -> NetBox readback; no new start.
 - "Scan, onboard, then collect facts": approved scan -> identify -> confirmed
-  onboarding -> readback -> prepared-host discovery -> results; any enrichment
-  writes require their own concrete confirmed proposal.
+  onboarding -> readback -> prepared-host discovery -> results -> NetBox readback; semantic changes require a concrete confirmed proposal.

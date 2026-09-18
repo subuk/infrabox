@@ -204,3 +204,20 @@ explicitly authorized target without model calls or NetBox writes. Supply the
 selected inventory, protected inputs, host identities and persistent request ID.
 Conversational writes/migrations remain manual operator acceptance; never infer
 that those passed from transport or permission checks.
+
+## Deterministic discovery reconciliation (KRG-21)
+
+KRG-21 supersedes KRG-9's raw-facts-to-OpenClaw enrichment path. Read
+`docs/discovery-reconciliation.md`. An explicit selected-host discovery request
+also authorizes pipeline writes to discovery-owned fields. Semantic/operator-owned
+changes, deletions and Device/VM migrations still require a concrete confirmed
+proposal. Python owns reconciliation; Ansible only collects facts and optional
+DMI. DMI failure must not fail ordinary collection or clear previous hardware data.
+Raw facts remain seven-day Gitea debugging artifacts by operator choice; Gateway
+only downloads the separate compact reconciliation artifact.
+
+Use focused relevant tests for KRG-21, not the full regression suite. Authorized
+live targets for this implementation are the existing development appliance and
+managed hosts `testbox.net.krglv.com` and `slava.net.krglv.com`. Do not recreate the
+appliance. Respect their actual NetBox identities; a guest recorded as Device is
+not permission to migrate it automatically.

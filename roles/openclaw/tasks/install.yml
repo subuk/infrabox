@@ -33,7 +33,7 @@
   ansible.builtin.assert:
     that:
       - >-
-        (item.key == 'ollama' and item.value.api | default('') == 'ollama'
+        (item.value.api | default('') == 'ollama'
          and item.value.apiKey | default('') == 'ollama-local')
         or
         (item.value.apiKey | default(none) is mapping

@@ -118,7 +118,7 @@ class Manager:
         if action == 'create':
             with self.opener.open(Request(self.c['netbox_url'] + '/api/users/tokens/provision/',
                     data=json.dumps({'username': 'svc-platform', 'password': self.c['service_password'],
-                                     'description': 'InfraBox Platform inventory', 'write_enabled': False, 'version': 2}).encode(),
+                                     'description': 'InfraBox Platform inventory', 'write_enabled': True, 'version': 2}).encode(),
                     headers={'Content-Type': 'application/json'}), timeout=30) as response:
                 body = json.load(response)
                 if response.status != 201 or body.get('version') != 2:

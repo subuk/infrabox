@@ -138,7 +138,7 @@ Merge an `ollama` entry into `openclaw_model_providers` alongside existing
 providers. Following the [OpenClaw Ollama documentation](https://docs.openclaw.ai/providers/ollama/configuration),
 use the native endpoint without `/v1` and the non-secret `ollama-local` marker
 for an unauthenticated LAN server. Real credentials still require Vault SecretRefs.
-The role enables the bundled Ollama plugin when this provider is configured.
+The role enables the bundled Ollama plugin when a provider uses `api: ollama`, including custom provider IDs.
 
 ```yaml
 openclaw_model_providers:
@@ -168,7 +168,15 @@ not change the default model or configure fallback. Native OpenAI hosted web
 search does not become available through Ollama automatically.
 
 For a provider-only configuration change, use the same `agent.yml` command with
-`--tags openclaw_provider_config`. This renders the managed Gateway JSON and
+`--tags openclaw_provider_config`. This renders the managed Gateway JSON and protected environment, and
 restarts the Gateway if it changed, without running integration or secret audits.
-This path assumes an already provisioned appliance; environment, image and
+This path assumes an already provisioned appliance; image and
 credential changes still need their corresponding lifecycle tasks.
+
+For manual selection between two interfaces of one Ollama server, configure two
+provider IDs (for example `ollama-38` and `ollama-184`), each with its own
+`baseUrl`, `api: ollama`, `apiKey: ollama-local` and model list. Add both addresses
+to `openclaw_no_proxy`. Select `/model ollama-38/ministral-3:14b` or
+`/model ollama-184/ministral-3:14b` according to the reachable interface; Qwen
+works the same way. After renaming an existing provider, select a new model
+reference in existing sessions. This configuration has no automatic fallback.

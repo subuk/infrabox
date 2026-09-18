@@ -3,7 +3,8 @@
 [Documentation index](README.md)
 
 [OpenClaw discovery integration](openclaw-discovery.md) can launch this fixed
-workflow and use confirmed proposals to enrich NetBox through its existing MCP.
+workflow, which deterministically reconciles discovery-owned facts into NetBox.
+See [field ownership and reconciliation](discovery-reconciliation.md).
 
 Platform provides an optional trusted runner and managed Gitea automation
 repository. Target-specific acceptance and remaining checks are recorded in
@@ -57,8 +58,7 @@ Before live discovery, ask the operator for the designated test host. The
 operator installs the public SSH key on that host and writes its private part
 to `kv/platform/ssh/default`, field `private_key` (KV v2 API path
 `kv/data/platform/ssh/default`). Do not generate a replacement over an existing
-trusted key. Core creates `kv/platform/netbox`, field `token`, for read-only
-inventory access. Namespace paths are independent of OpenClaw's namespace.
+trusted key. Core creates `kv/platform/netbox`, field `token`, for dedicated inventory reads and discovery writes. Namespace paths are independent of OpenClaw's namespace.
 
 SSH uses trust on first use (`StrictHostKeyChecking=accept-new`). The first
 connection automatically trusts and records the presented key; it does not

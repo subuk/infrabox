@@ -5,7 +5,7 @@ import io
 from django.contrib.auth import authenticate
 from django.http import HttpRequest
 from users.models import Token, User
-from infrabox_catalog import EDITOR_MODELS, READER_MODELS
+from infrabox_catalog import EDITOR_MODELS, READER_MODELS, DISCOVERY_PERMISSIONS, HARDWARE_READS
 from infrabox_auth import InfraBoxObjectPermissionBackend
 
 
@@ -34,6 +34,9 @@ def main(c):
     models = EDITOR_MODELS if c['role'] == 'editor' else READER_MODELS
     actions = ['view', 'add', 'change', 'delete'] if c['role'] == 'editor' else ['view']
     expected = {app + '.' + action + '_' + model for app, model in (name.split('.') for name in models) for action in actions}
+    expected |= {app + '.view_' + model for app, model in (name.split('.') for name in HARDWARE_READS)}
+    if c['username'] == 'svc-platform':
+        expected = DISCOVERY_PERMISSIONS
     permissions = InfraBoxObjectPermissionBackend().get_object_permissions(user)
     require(set(permissions) == expected and all(value == [None] for value in permissions.values()),
             'Effective service permissions differ from the managed inventory envelope')
@@ -51,7 +54,7 @@ def main(c):
                     'Token belongs to another identity or purpose')
             if candidate.validate(plaintext):
                 token = candidate
-    valid = bool(token and token.is_active and token.write_enabled == (c['role'] == 'editor')
+    valid = bool(token and token.is_active and token.write_enabled == (c['role'] == 'editor' or c['username'] == 'svc-platform')
                  and token.expires is None and not token.allowed_ips)
     if c['action'] == 'inspect':
         return {'changed': changed, 'valid': valid}

@@ -109,6 +109,36 @@ non-development deployment were performed. Model behavior remains for operator
 evaluation; file delivery/registration checks do not establish conversational
 acceptance.
 
+## Manual Ollama interface selection — 2026-09-17
+
+At the operator's request, replaced development provider `ollama` with
+`ollama-38` (`192.168.32.38:11434`) and `ollama-184`
+(`192.168.32.184:11434`). Both expose `qwen3.5:9b` and `ministral-3:14b`.
+Selection is manual; existing sessions must select a new provider/model reference.
+OpenAI/Codex settings are preserved. Both endpoint addresses are included in the
+inventory NO_PROXY setting. The role enables the Ollama plugin by native API
+adapter rather than provider name and permits the non-secret local marker for
+custom Ollama provider IDs. The provider-only tag also renders the protected
+environment so applicable proxy changes are deployed.
+
+Applied to development `infrabox1` (`192.168.32.206`) using explicit inventory,
+existing protected inputs and `agent.yml --tags openclaw_provider_config`:
+`ok=5 changed=2 unreachable=0 failed=0`; Gateway restart handler completed.
+No tests, secret audits, endpoint probes or inference were run, per operator
+preference. Evidence: `artifacts/infrabox1/openclaw-ollama-interfaces-20260917.log`.
+
+## Add Ministral to development Ollama — 2026-09-17
+
+Added the operator-provided `ministral-3:14b` model to the existing Ollama
+provider in `inventories/development/hosts.yml`, preserving Qwen and OpenAI.
+Applied `agent.yml --tags openclaw_provider_config` to `infrabox1`
+(`192.168.32.206`) with existing protected inputs: `ok=4 changed=2
+unreachable=0 failed=0`. The managed Gateway configuration was updated and
+its restart handler completed. Only the model ID and display name were added;
+model capabilities and limits were not probed or assumed. No tests, secret audit,
+health probes or inference were run, as requested by the operator.
+Evidence: `artifacts/infrabox1/openclaw-ministral-deploy-20260917.log`.
+
 ## Restore OpenAI Codex runtime plugin — 2026-09-17
 
 The operator reported that selecting `openai/gpt-5.6-sol` failed because no
@@ -1494,3 +1524,118 @@ Evidence is in `artifacts/infrabox1/web-search-deploy.log`,
 issued no paid model or hosted-search request and performed no conversational
 acceptance or NetBox inventory write fixture. A real search and its answer
 quality remain operator checks. See [web-search operation](docs/openclaw.md#web-search-through-openai).
+
+## KRG-21 — deterministic discovery deployed (2026-09-18)
+
+Implemented [discovery reconciliation](docs/discovery-reconciliation.md) on the
+existing development appliance with `inventories/development/hosts.yml`.
+Platform revision `fb3b7ebfab88bcf4d0138d84b126fbc0656db23d` reconciles owned
+infrastructure fields through the independent service identity. Optional physical
+Linux DMI collection uses become and tolerates failure. Gateway consumes only the
+compact reconciliation artifact; raw debugging facts remain separately available.
+
+Completed checks:
+
+- Six focused Platform tests, ten Gateway tests and 21 relevant Core tests passed.
+  Ansible syntax checks, JavaScript syntax checks and managed skill validation passed.
+- Actual Gateway discovery runs 668 and 670 succeeded on exactly
+  `testbox.net.krglv.com` (Device 1) and `slava.net.krglv.com` (Device 12).
+  Request deduplication and compact artifact identity checks passed.
+- Both hosts now have Platform `AlmaLinux 10.2`. Slava has one six-core CPU module
+  and two DDR4 DIMM modules of 8192 MiB each, with seven interfaces. Testbox has
+  one interface and no physical modules. It remains a Device representing a
+  virtual guest; migration was not performed. Native VM CPU/RAM has unit coverage,
+  not live VirtualMachine acceptance.
+- Run 670 collected and reconciled both hosts with zero infrastructure changes;
+  only successful-observation provenance refreshed. Replaying saved runs 668 and
+  670 made zero HTTP write requests, including provenance. Operator-field hashes
+  matched the baseline after the separately approved testbox login correction.
+- Both compact and raw artifacts were inspected by filename without exposing raw
+  facts to Gateway. Workflow retention remains configured as seven days; Gitea's
+  observed artifact timestamps span six days (September 17–23 UTC). Final expiry
+  is governed by the published Gitea timestamp. Completed job workspaces were removed.
+- Passive discovery metrics reached Prometheus with workflow success 1 and no
+  API/auth errors. Final component deployments passed: Platform `ok=109 changed=13`,
+  Gateway `ok=28 changed=4`, monitoring `ok=40 changed=7`; all had zero failures.
+
+Initial run 665 was partial because testbox rejected the unset/default root login.
+The operator approved setting only `local_context_data.ansible_user=almalinux`;
+readback confirmed preservation of its other context. Live checks also identified
+DMI `GiB` units and equivalent UTC timestamp formats; both are now handled.
+The first monitoring deployment stopped before configuration activation because
+the exporter address depended on a skipped role. Prometheus now reads the address
+from the staged monitoring catalog; promtool validation and subsequent activation
+succeeded. Failed evidence is retained rather than relabeled as successful.
+
+Remaining warnings are intentional: guest represented as Device, and observed IPs
+without established VRF context. No migration, deletion, primary-IP reassignment,
+model conversation, full regression, full appliance deployment, expiry test or
+reboot acceptance was performed. Unavailable DMI behavior has focused local coverage;
+sudo failure was not induced on the live hosts.
+
+Sanitized evidence is under `artifacts/infrabox1/`: `krg21-*-unit.log`,
+`krg21-platform-corrections.log`, `krg21-gateway-final.log`,
+`krg21-monitoring-final.log`, `krg21-live-final.log`, `krg21-live-repeat.log`,
+`krg21-repeat-snapshot.json`, `krg21-final-replay.json`, `krg21-repeat-replay.json`,
+`krg21-artifacts.json`, `krg21-monitoring-metrics.json` and
+`krg21-final-observations.json`. Gateway acceptance reports are in
+`krg9/discovery-krg21-20260918-{final,repeat}.json` within that directory.
+
+### Interface-name exclusions and slava cleanup (2026-09-18)
+
+Platform revision `edbb1232bf76cd750f327be36aacda0429c7f4cd` excludes `cilium_*`
+and `lxc*` from reconciliation while retaining them in raw facts. Repository variable
+`PLATFORM_INTERFACE_EXCLUDE_PATTERNS` overrides the comma-separated glob list.
+The six focused tests passed, including default exclusion and override coverage;
+Ansible syntax and component deployment passed (`ok=109 changed=13 failed=0`).
+
+Following explicit operator authorization, all seven existing slava interfaces
+were deleted. To preserve the three existing IP objects and both primary IPs,
+their assignments were temporarily detached and restored to recreated `eno1`
+(interface 25) before discovery. No other host was cleaned.
+Gateway run 673 targeted only slava and completed collection/reconciliation with
+zero warnings or errors. It restored the observed MAC on `eno1`; excluded
+interfaces were not recreated. CPU/DIMM modules were unchanged.
+
+Evidence: `krg21-interface-filter-unit.log`, `krg21-interface-filter-deploy.log`,
+`krg21-slava-interface-cleanup.json`, `krg21-slava-interfaces-{before,after}.json`,
+`krg21-slava-filter-live.log`, and
+`krg9/discovery-krg21-slava-interface-filter-20260918.json` under
+`artifacts/infrabox1/`.
+
+### Disk reconciliation extension (2026-09-18)
+
+Platform revision `cd59722cb074a451ce05284ef2fa4ebd2bfa440e` adds native VM disks
+and physical Disk modules from existing Linux Ansible device facts. No additional
+managed-host command or package is required. Provisioning owns the `Discovery Disk`
+profile and module identity custom field; the service gains only VirtualDisk
+view/add/change permissions. Gateway accepts the compact `virtual_disk` change type.
+PCI inventory and hypervisor/passthrough correlation are not part of this extension.
+
+Eight focused Platform tests, ten Gateway tests and 18 relevant Core tests passed,
+as did site syntax, managed skill validation and whitespace checks. Tests cover
+whole-disk filtering, 4 KiB sectors, duplicate/conflicting identities, NVMe EUI,
+guest safety, native VM disk creation/resizing, preserved operator fields and no-op
+replay. Installed NetBox source and effective configuration confirmed integer disk
+size with `DISK_BASE_UNIT=1000`; the conversion uses decimal MB rounded up.
+
+Development component deployments passed: Platform `ok=111 changed=17 failed=0`,
+Gateway `ok=28 changed=4 failed=0`. NetBox startup took several minutes, then actual
+web/worker and database/Redis TLS checks passed without a repair or rollback.
+Gateway discovery run 750 successfully collected/reconciled only slava and testbox.
+Slava gained one `Discovery Disk` module for `PM991 NVMe Samsung 256GB`, with
+256060514304 bytes, rotational=false and its observed EUI retained as disk identity.
+Vendor and serial were absent in facts: the module type uses the explicit generic
+manufacturer, serial remains empty, and the report warns about unknown manufacturer.
+Previous CPU/DIMM modules, interfaces and operator-field hashes were unchanged.
+
+Reprocessing run 750 produced zero HTTP writes, no duplicates and no provenance
+update. Testbox still has a Device record for a guest and received no physical disk
+module. Native VirtualDisk behavior has focused unit coverage, not a live VM write
+test; neither host was migrated and no fixture VM was created. Missing observations
+never delete old modules/disks. Passthrough ownership and chassis slots are not inferred.
+
+Evidence under `artifacts/infrabox1/`: `krg21-disks-{unit,gateway-unit,core-unit}.log`,
+`krg21-disks-syntax.log`, `krg21-disks-deploy.log`, `krg21-disks-gateway-deploy.log`,
+`krg21-disks-live.log`, `krg21-disks-{baseline,after,replay}.json`, and
+`krg9/discovery-krg21-disks-20260918.json`.

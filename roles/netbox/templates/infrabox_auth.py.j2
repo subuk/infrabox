@@ -4,6 +4,7 @@ from django.core.exceptions import PermissionDenied
 from django.contrib.auth.backends import BaseBackend
 from netbox.authentication import ObjectPermissionBackend, RemoteUserBackend
 from social_core.exceptions import AuthForbidden
+from infrabox_catalog import DISCOVERY_PERMISSIONS
 
 ROLE_GROUPS = frozenset(['infrabox:netbox:admin', 'infrabox:netbox:editor', 'infrabox:netbox:reader'])
 
@@ -44,6 +45,10 @@ class InfraBoxObjectPermissionBackend(ObjectPermissionBackend):
         return None
 
     def get_object_permissions(self, user_obj):
+        if user_obj.username == 'svc-platform' and is_service(user_obj):
+            if not user_obj.is_active or user_obj.is_superuser or set(user_obj.groups.values_list('name', flat=True)) != {'infrabox:netbox:reader'}:
+                return {}
+            return {name: [None] for name in DISCOVERY_PERMISSIONS}
         permissions = super().get_object_permissions(user_obj)
         if is_service(user_obj):
             for name in settings.DEFAULT_PERMISSIONS:
@@ -51,6 +56,8 @@ class InfraBoxObjectPermissionBackend(ObjectPermissionBackend):
         return permissions
 
     def has_perm(self, user_obj, perm, obj=None):
+        if user_obj.username == 'svc-platform' and is_service(user_obj) and perm not in DISCOVERY_PERMISSIONS:
+            raise PermissionDenied
         if (is_service(user_obj)
                 and perm in settings.DEFAULT_PERMISSIONS):
             # Django stops at PermissionDenied instead of consulting the stock

@@ -13,7 +13,7 @@ async function call(name,params) {
 }
 const report={outcome:'failed',checks:[]};
 try {
-  if(!Array.isArray(input.hosts) || input.hosts.length!==1)throw Error('Acceptance requires exactly one explicitly authorized host');
+  if(!Array.isArray(input.hosts) || input.hosts.length<1 || input.hosts.length>2)throw Error('Acceptance requires one or two explicitly authorized hosts');
   const params={request_id:input.request_id,hosts:input.hosts};
   const started=input.resume_only
     ? await call('infrabox_discovery_status',{request_id:input.request_id})
@@ -34,11 +34,14 @@ try {
   } while(Date.now()<deadline);
   if(state.state!=='completed')throw Error('Workflow still pending; inspect retained run, do not redispatch');
   const summary=await call('infrabox_discovery_result',{request_id:input.request_id});
-  if(summary.collection_outcome!=='success' || state.conclusion!=='success' || !summary.selection_complete || summary.counts.selected!==1 || summary.counts.succeeded!==1)throw Error('Single-host discovery was not successful');
-  const host=input.hosts[0];
-  const page=await call('infrabox_discovery_result',{request_id:input.request_id,host:`${host.object_type}-${host.object_id}`});
-  if(!page.facts || page.facts.total<1)throw Error('Native facts missing');
-  report.checks.push('workflow_completion','artifact_run_attempt_sha_identity','exact_single_host','native_facts_paging');
-  Object.assign(report,{outcome:'passed',attempt:summary.attempt,artifact_id:summary.artifact_id,observed_at:summary.observed_at,counts:summary.counts,host:summary.hosts[0],facts_fields:page.facts.total,workflow_conclusion:state.conclusion});
-} catch {report.reason='OpenClaw discovery acceptance failed; inspect the retained request and Gitea run. No NetBox write was made.';}
+  if(summary.collection_outcome!=='success' || state.conclusion!=='success' || !summary.selection_complete || summary.counts.selected!==input.hosts.length || summary.counts.reconciled!==input.hosts.length || summary.reconciliation_outcome!=='success')throw Error('Selected-host discovery was not successful');
+  const details=[];
+  for(const host of input.hosts){
+    const page=await call('infrabox_discovery_result',{request_id:input.request_id,host:`${host.object_type}-${host.object_id}`});
+    if(page.host?.reconciliation_status!=='succeeded' || page.facts!==undefined)throw Error('Compact reconciliation did not succeed');
+    details.push(page.host);
+  }
+  report.checks.push('workflow_completion','artifact_run_attempt_sha_identity','exact_selected_hosts','compact_reconciliation_result');
+  Object.assign(report,{outcome:'passed',attempt:summary.attempt,artifact_id:summary.artifact_id,observed_at:summary.observed_at,counts:summary.counts,hosts:details,workflow_conclusion:state.conclusion});
+} catch {report.reason='OpenClaw discovery acceptance failed; inspect the retained request and Gitea run. Discovery may have applied changes; inspect per-host reconciliation results.';}
 console.log(JSON.stringify(report));process.exitCode=report.outcome==='passed'?0:1;

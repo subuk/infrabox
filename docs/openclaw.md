@@ -197,8 +197,9 @@ Unrelated tags are preserved. A generic hardware type or `infrabox-unknown`
 interface is an explicit placeholder, not a detected fact.
 
 Conversational onboarding records user-provided information. With Platform
-discovery enabled, OpenClaw can also run the fixed Ansible workflow and propose
-confirmed enrichment from actual per-host facts; see [discovery and enrichment](openclaw-discovery.md). Conversational acceptance
+discovery enabled, OpenClaw can run the fixed Ansible workflow, which automatically
+reconciles discovery-owned facts into NetBox. OpenClaw reads the compact report
+and current NetBox state; see [discovery and enrichment](openclaw-discovery.md). Conversational acceptance
 is performed manually by the operator. Automated verification opens an MCP
 session, checks the five tools, reads NetBox with verified TLS, and checks
 credentials, effective object permissions, and isolation. It makes no model calls,

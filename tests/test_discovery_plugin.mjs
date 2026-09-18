@@ -5,10 +5,10 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {deflateRawSync} from 'node:zlib';
 import {Discovery,selection} from '../roles/openclaw/files/discovery/client.mjs';
-import {crc32,readZip,validateArtifact,factPage} from '../roles/openclaw/files/discovery/archive.mjs';
+import {crc32,readZip,validateArtifact} from '../roles/openclaw/files/discovery/archive.mjs';
 const revision='a'.repeat(40), hosts=[{name:'testbox.example.com',object_type:'device',object_id:12}];
 const record={run_id:178,revision,pattern:hosts[0].name,hosts};
-function manifest(overrides={}) {return {run_id:'178',attempt:'1',revision,pattern:record.pattern,started_at:'2026-09-13T12:00:00Z',finished_at:'2026-09-13T12:01:00Z',outcome:'success',ansible_return_code:0,hosts:[{...hosts[0],file:'facts/device-12.json',status:'succeeded'}],counts:{selected:1,succeeded:1,failed:0,unreachable:0,not_completed:0},...overrides};}
+function manifest(overrides={}) {return {schema_version:2,run_id:'178',attempt:'1',revision,pattern:record.pattern,started_at:'2026-09-13T12:00:00Z',finished_at:'2026-09-13T12:01:00Z',outcome:'success',collection_outcome:'success',ansible_return_code:0,hosts:[{...hosts[0],status:'succeeded',reconciliation_status:'succeeded',changes:[],warnings:[],errors:[]}],counts:{selected:1,collected:1,reconciled:1,changed:0,unchanged:1,warning:0,failed:0,unreachable:0},...overrides};}
 function zip(entries) {
   const parts=[],central=[];let offset=0;
   for(const [name,value] of entries) {
@@ -20,7 +20,7 @@ function zip(entries) {
   const dir=Buffer.concat(central),end=Buffer.alloc(22);end.writeUInt32LE(0x06054b50);end.writeUInt16LE(entries.length,8);end.writeUInt16LE(entries.length,10);end.writeUInt32LE(dir.length,12);end.writeUInt32LE(offset,16);
   return Buffer.concat([...parts,dir,end]);
 }
-function archive(m=manifest(),facts={ansible_distribution:'AlmaLinux'}) {return zip([['run.json',JSON.stringify(m)],['summary.md','summary'],['facts/device-12.json',JSON.stringify(facts)]]);}
+function archive(m=manifest()) {return zip([['reconciliation-summary.json',JSON.stringify(m)]]);}
 async function fixture(t,override) {
   const stateDir=await mkdtemp(join(tmpdir(),'discovery-'));t.after(()=>rm(stateDir,{recursive:true,force:true}));
   const c={giteaUrl:'https://git.example.com',netboxUrl:'https://netbox.example.com',organization:'platform',repository:'automation',branch:'master',managedTag:'infrabox-managed',stateDir,tokenFile:'gitea',netboxTokenFile:'netbox'};
@@ -35,7 +35,7 @@ async function fixture(t,override) {
       if(url.pathname.endsWith('/branches/master'))return {commit:{id:revision}};
       if(url.pathname.endsWith('/dispatches'))return {workflow_run_id:178,html_url:'https://git.example.com/platform/automation/actions/runs/5'};
       if(url.pathname.endsWith('/runs/178'))return {id:178,head_sha:revision,status:'completed',conclusion:'success'};
-      if(url.pathname.endsWith('/artifacts'))return {artifacts:[{id:5,name:'discovery-178-1',expired:false},{id:6,name:'discovery-178-2',expired:false}]};
+      if(url.pathname.endsWith('/artifacts'))return {artifacts:[{id:5,name:'reconciliation-178-1',expired:false},{id:6,name:'reconciliation-178-2',expired:false}]};
       if(url.pathname.endsWith('/artifacts/5/zip'))return archive();
       if(url.pathname.endsWith('/artifacts/6/zip'))return archive(manifest({attempt:'2'}));
       throw Error('Unexpected route '+url.pathname);
@@ -82,35 +82,30 @@ test('run revision races and changed deployment identities fail closed',async t=
   await assert.rejects(()=>f.client.status({request_id:'request-0004'}));
   await assert.rejects(()=>new Discovery({...f.c,repository:'another'},f.deps).status({request_id:'request-0004'}));
 });
-test('explicit attempts select different immutable artifacts and bounded facts',async t=>{
+test('explicit attempts select different compact artifacts without exposing facts',async t=>{
   const f=await fixture(t);await f.client.start({request_id:'request-0005',hosts});
   const one=await f.client.result({request_id:'request-0005',host:'device-12'});
   const two=await f.client.result({request_id:'request-0005',attempt:2});
-  assert.equal(one.artifact_id,5);assert.equal(two.artifact_id,6);assert.equal(one.facts.entries[0].value,'AlmaLinux');
+  assert.equal(one.artifact_id,5);assert.equal(two.artifact_id,6);assert.equal(one.host.reconciliation_status,'succeeded');assert.equal(one.facts,undefined);
   await assert.rejects(()=>f.client.result({request_id:'request-0005',attempt:3}));
   assert.equal(f.calls.filter(([,o])=>o.method==='POST').length,1);
 });
 test('native ZIP round trip rejects unsafe paths, duplicate files, CRC mismatch and excess expansion',()=>{
-  assert.equal(validateArtifact(readZip(archive()),record,1).facts.get('device-12').ansible_distribution,'AlmaLinux');
+  assert.equal(validateArtifact(readZip(archive()),record,1).manifest.counts.reconciled,1);
+  const disks=manifest();disks.hosts[0].changes=[{object:'virtual_disk',id:1,fields:['size']}];disks.counts.changed=1;disks.counts.unchanged=0;
+  assert.equal(validateArtifact(readZip(archive(disks)),record,1).manifest.hosts[0].changes[0].object,'virtual_disk');
   for(const names of [['../run.json','summary.md'],['run.json','run.json','summary.md'],['/run.json','summary.md']])assert.throws(()=>readZip(zip(names.map(n=>[n,'{}']))));
   const b=archive();b[b.length-35]^=1;assert.throws(()=>readZip(b));
   assert.throws(()=>readZip(zip([['run.json','x'.repeat(9*1024*1024)],['summary.md','x']])));
 });
-test('artifact attribution checks IDs, attempt, source, counts and excludes secret families',()=>{
+test('artifact attribution checks IDs, attempt, source, counts and rejects raw files',()=>{
   for(const m of [manifest({attempt:'2'}),manifest({revision:'b'.repeat(40)}),manifest({pattern:'all'}),manifest({counts:{selected:2}}),manifest({hosts:[{...manifest().hosts[0],object_id:13}]})])assert.throws(()=>validateArtifact(readZip(archive(m)),record,1));
-  assert.throws(()=>validateArtifact(readZip(archive(manifest(),{ansible_env:{secret:'fixture'}})),record,1));
+  assert.throws(()=>readZip(zip([['facts/device-12.json','{}']])));
+  assert.throws(()=>validateArtifact(readZip(archive(manifest({hosts:[{...manifest().hosts[0],facts:{secret:'not-a-summary'}}]}))),record,1));
 });
-test('partial failures preserve successful host facts and identify missing requested hosts',()=>{
+test('partial reconciliation failures remain explicit and missing selections are visible',()=>{
   const r={...record,hosts:[...hosts,{name:'host2',object_type:'vm',object_id:13}]};
-  const m=manifest({outcome:'partial_failure',ansible_return_code:2,hosts:[...manifest().hosts,{name:'host2',object_type:'vm',object_id:13,file:'facts/vm-13.json',status:'unreachable'}],counts:{selected:2,succeeded:1,failed:0,unreachable:1,not_completed:0}});
-  const parsed=validateArtifact(readZip(archive(m)),r,1);assert.equal(parsed.facts.size,1);assert.equal(parsed.selectionComplete,true);
-  const missing=validateArtifact(readZip(archive(manifest({outcome:'partial_failure',ansible_return_code:2}))),r,1);assert.equal(missing.selectionComplete,false);assert.equal(missing.missing[0].object_id,13);
-});
-test('facts paging preserves native values, escapes pointers and exposes truncation',()=>{
-  const f={'a/b':{'~x':'native'},huge:'x'.repeat(10000),nested:{big:'x'.repeat(6000)},...Object.fromEntries(Array.from({length:20},(_,i)=>['key'+i,i]))};
-  assert.equal(factPage(f,'/a~1b/~0x').value,'native');assert.equal(factPage(f,'/huge').truncated,true);
-  assert.equal(factPage(f).entries.find(e=>e.key==='nested').expand,true);assert.equal(factPage(f).next_offset,10);
-  assert.equal(factPage({['x'.repeat(1000000)]:1}).entries[0].key_truncated,true);
-  assert.ok(JSON.stringify(factPage({['x'.repeat(1000000)]:1})).length<1000);
-  assert.throws(()=>factPage(f,'/missing'));assert.throws(()=>factPage(f,'/~bad'));assert.throws(()=>factPage(f,'',-1));
+  const m=manifest({outcome:'failed',hosts:[...manifest().hosts,{name:'host2',object_type:'vm',object_id:13,status:'succeeded',reconciliation_status:'failed',changes:[],warnings:[],errors:['netbox_api']}],counts:{selected:2,collected:2,reconciled:1,changed:0,unchanged:1,warning:0,failed:1,unreachable:0}});
+  const parsed=validateArtifact(readZip(archive(m)),r,1);assert.equal(parsed.manifest.counts.failed,1);assert.equal(parsed.selectionComplete,true);
+  const missing=validateArtifact(readZip(archive(manifest({outcome:'failed'}))),r,1);assert.equal(missing.selectionComplete,false);assert.equal(missing.missing[0].object_id,13);
 });

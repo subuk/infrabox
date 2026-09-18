@@ -1,5 +1,5 @@
 ---
-- name: Accept fixed OpenClaw discovery on one explicitly authorized managed host
+- name: Accept fixed OpenClaw discovery on explicitly authorized managed hosts
   hosts: infrabox
   become: true
   tasks:
@@ -7,10 +7,11 @@
       ansible.builtin.assert:
         that:
           - openclaw_discovery_acceptance_hosts is defined
-          - openclaw_discovery_acceptance_hosts | length == 1
+          - openclaw_discovery_acceptance_hosts | length >= 1
+          - openclaw_discovery_acceptance_hosts | length <= 2
           - openclaw_discovery_acceptance_request_id is defined
           - openclaw_discovery_acceptance_request_id is match('^[A-Za-z0-9][A-Za-z0-9_-]{7,79}$')
-    - name: Exercise registered discovery tools without paid model calls or NetBox writes
+    - name: Exercise registered discovery tools without model calls (discovery-owned NetBox writes are expected)
       ansible.builtin.command: &discovery_acceptance_command
         argv:
           - podman

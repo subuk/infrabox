@@ -192,6 +192,17 @@ def netbox_dependencies():
 
 def probe(ch,c):
     adapter=ch['adapter']; metrics=[]
+    if adapter=='discovery':
+        d=json.loads(run(['podman','exec','platform-runner','cat','/data/discovery-health.json']))
+        if 'workflow_success' not in d and time.time()-d['started']<=1500:raise ProbeDeferred
+        success = not (d.get('running') and time.time()-d['started']>1500) and d.get('workflow_success',False)
+        values={'workflow_success':int(success),'running':int(d.get('running',False)),
+                'last_run_timestamp_seconds':d['started'],'last_completed_timestamp_seconds':d.get('finished',0),'last_successful_reconciliation_timestamp_seconds':d.get('last_success',0),
+                'warning_hosts':d.get('counts',{}).get('warning',0),'failed_hosts':d.get('counts',{}).get('failed',0),'unreachable_hosts':d.get('counts',{}).get('unreachable',0),
+                'reconciliation_failures':d.get('reconciliation_failures',0),'api_failures':d.get('api_failures',0),
+                'auth_failures':d.get('auth_failures',0)}
+        if not all(isinstance(v,(int,float)) for v in values.values()):raise ProbeError('invalid_response')
+        return [f'infrabox_discovery_{k} {v}' for k,v in values.items()]
     if adapter=='unit':
         run(['systemctl','is-active',ch['unit']])
         if ch['unit']=='infrabox-scanner.service':

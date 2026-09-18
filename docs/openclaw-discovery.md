@@ -1,59 +1,25 @@
-# OpenClaw discovery and NetBox enrichment (KRG-9)
+# OpenClaw discovery and pipeline reconciliation (KRG-21)
 
-[Documentation index](README.md)
+[Documentation index](README.md) · [Ownership contract](discovery-reconciliation.md)
 
-OpenClaw can run the fixed Platform discovery workflow, read native Ansible facts
-and propose corrections to NetBox. The Platform playbook, Ansible pattern input,
-runner, credentials and fact schema are unchanged. NetBox remains the source of
-inventory; Gitea retains the source run and native result artifacts.
+An explicit request for selected prepared managed hosts authorizes the fixed
+Platform workflow, including deterministic writes of discovery-owned NetBox data.
+OpenClaw reads current NetBox state after completion and explains unresolved warnings.
+Manual semantic edits, deletions and migrations still need a confirmed proposal.
 
-## Operator workflow
+1. Read NetBox and select exact managed Device/VM names and IDs.
+2. Call `infrabox_discovery_start` with a persistent request_id and explicit hosts.
+3. Poll `infrabox_discovery_status`; preserve the same request_id across restarts.
+4. Read `infrabox_discovery_result` with an explicit available attempt. It returns
+   a compact host summary. Use `offset`/`next_offset` for all hosts or select
+   `host: device-ID` / `vm-ID` for paginated changes, warnings and errors.
+5. Read NetBox for resulting state. Collection success alone is not write success.
 
-1. Prepare the managed Device/VM in NetBox with its connection parameters and
-   `infrabox-managed` tag. The operator supplies SSH credentials in OpenBao and
-   verified host keys through the existing [Platform procedure](platform.md).
-   OpenClaw can propose confirmed Config Context edits, including local context.
-2. Ask OpenClaw to discover the selected hosts. An explicit request for an
-   unambiguous set is enough; there is no second launch confirmation.
-3. OpenClaw reads NetBox and sends exact names and Device/VM IDs to
-   `infrabox_discovery_start`. The plugin verifies their current names and tag,
-   and passes a comma-separated name list as the existing workflow's `targets`.
-   Neither workflow/ref/URL nor arbitrary Ansible options are tool inputs.
-4. The response contains `request_id`, Gitea run ID and run URL. Use
-   `infrabox_discovery_status` to wait up to 30 seconds per call or to resume after
-   Gateway restart. A completed run is read with `infrabox_discovery_result`.
-5. Review the proposed NetBox changes and source attribution. All writes,
-   including deletion and Device-to-VM migration, require a separate concrete
-   confirmed proposal and use the existing NetBox MCP integration.
-
-The tool accepts 1–256 prepared hosts with ordinary native inventory names
-(letters, numbers, underscores, dots and hyphens; no pattern metacharacters).
-For "all managed hosts", OpenClaw reads the complete eligible list with NetBox
-pagination and submits the explicit names. Empty input never selects all. The
-underlying Gitea UI continues to accept ordinary Ansible patterns. Ambiguous
-names across sites or devices/VMs are rejected before dispatch. The fixed
-inventory group namespaces (`site_`, `platform_`, `role_`, `tag_`, `is_virtual`,
-`all`, `ungrouped`) are not accepted as hostnames to avoid group/host collisions.
-
-`infrabox_discovery_result` first returns a per-host summary. Select `device-ID`
-or `vm-ID` to read native facts; follow JSON pointers and `next_offset` for
-bounded pages. Large fields are marked as previews or expandable values rather
-than silently passed off as complete. Each result carries run/attempt, SHA and
-timestamp. No normalized facts schema or automatic NetBox writeback is added.
-
-Ansible observations do not prove every aspect of host identity or configuration.
-Only successful hosts provide enrichment. Failed/unreachable/unfinished hosts,
-missing selections and publication failures remain visible. A successful host's
-facts may still be proposed when another host failed. OS guesses from Nmap,
-public vendor specifications, user statements and actual Ansible observations
-retain separate provenance.
-
-Use supported standard NetBox fields, with schema/relationship checks. Other
-facts remain visible as results, without new custom fields. CPU/memory facts
-need semantic and unit checks before proposing VM allocations. Placeholder
-interfaces and incorrectly classified Device/VM records may be corrected,
-including confirmed reassignment/deletion after replacement readback. Context,
-names, tags and address changes can intentionally affect the next discovery.
+The result tool only downloads `reconciliation-<run>-<attempt>`. Native facts and
+DMI records remain in the separate `discovery-<run>-<attempt>` Gitea artifact for
+operator debugging, with seven-day retention. No facts/pointer tool interface or
+LLM-based routine reconciliation remains. Historical requests retain their IDs,
+but old artifacts require manual Gitea inspection; never redispatch just to read.
 
 ## Configuration and lifecycle
 
@@ -110,7 +76,8 @@ a later conversation; there is no unsolicited background completion notification
 discovery scheduler, recurring monitor or canary.
 
 An initial run uses attempt 1. Native Gitea reruns retain separate
-`discovery-<run-id>-<attempt>` artifacts. The plugin selects an explicit attempt,
+`reconciliation-<run-id>-<attempt>` compact artifacts and separate raw debugging
+artifacts. The plugin selects an explicit attempt,
 verifies manifest/run/SHA/selection/counts and validates a bounded ZIP in memory,
 without filesystem extraction. Gitea's REST `run_attempt` is not used as truth;
 the pinned server has reported zero despite real attempt 1/2 artifacts.
@@ -122,10 +89,9 @@ receive download redirects. TLS uses the existing private RootCA; no verificatio
 bypass exists. Network/authentication errors do not trigger token replacement or
 new discovery runs from inside Gateway.
 
-Facts artifacts have Platform's limited retention. Missing/expired artifacts are
-reported without rerunning. Confirmed NetBox changes include compact provenance
-(time, run/attempt, URL, SHA, affected fields) in supported description/comments
-fields, preserving operator text and avoiding duplicate notes on repeated writes.
+Both artifacts have Platform's seven-day retention. Missing/expired compact
+artifacts are reported without rerunning. Pipeline provenance is stored in the
+fixed NetBox discovery custom fields; operator comments/descriptions are preserved.
 
 ## Verification and acceptance
 
@@ -153,11 +119,12 @@ acceptance parameters in a local JSON file:
 ```
 
 This dispatches the fixed workflow through the registered plugin tools, checks
-request deduplication, waits for completion and validates the downloaded native
-facts for exactly one host. It saves a bounded report with the actual run URL
+request deduplication, waits for completion and validates the downloaded compact
+reconciliation report for one or two explicitly selected hosts. It saves a bounded report with the actual run URL
 under `artifacts/<inventory_hostname>/krg9/`. Reuse the same request ID after a
 controller interruption to inspect the original request rather than creating a
-new run. It makes no model calls and does not write/delete inventory. Real
+new run. It makes no model calls. The dispatched workflow writes discovery-owned inventory
+fields, so authorize the selected target for enrichment. Real
 conversational proposals, confirmed writes and migrations remain operator
 acceptance; report their status separately from tool/transport checks.
 

@@ -42,6 +42,9 @@ class BoundaryTests(unittest.TestCase):
         environment.filters['to_json'] = json.dumps
         environment.filters['bool'] = bool
         code = environment.from_string(template.read_text()).render(netbox_openclaw_username='svc-openclaw', platform_enabled=True)
+        catalog = ModuleType('infrabox_catalog')
+        exec(Path('roles/netbox/files/catalog.py').read_text(), catalog.__dict__)
+        modules['infrabox_catalog'] = catalog
         namespace = {}
         with patch.dict(sys.modules, modules):
             exec(compile(code, str(template), 'exec'), namespace)
@@ -49,7 +52,8 @@ class BoundaryTests(unittest.TestCase):
         cls.password_boundary = namespace['RejectLocalPasswords']()
 
     def user(self, name):
-        return SimpleNamespace(pk=1, get_username=lambda: name,
+        return SimpleNamespace(pk=1, username=name, is_active=True, is_superuser=False,
+            groups=SimpleNamespace(values_list=lambda *a, **kw: ['infrabox:netbox:reader']), get_username=lambda: name,
             social_auth=SimpleNamespace(filter=lambda **kwargs: SimpleNamespace(exists=lambda: name == 'human')))
 
     def test_local_password_fallback_is_always_stopped(self):
@@ -85,12 +89,15 @@ class BoundaryTests(unittest.TestCase):
                 with self.assertRaises(PermissionDenied):
                     self.backend.has_perm(user, permission)
 
-    def test_platform_cannot_reach_fallback_implicit_grants(self):
+    def test_platform_has_only_the_discovery_envelope(self):
         user = self.user('svc-platform')
-        for permission in DEFAULTS:
+        for permission in (*DEFAULTS, 'dcim.delete_device', 'dcim.add_device', 'extras.change_configcontext'):
             with self.assertRaises(PermissionDenied):
                 self.backend.has_perm(user, permission)
-        self.assertEqual(self.backend.get_object_permissions(user), {'dcim.add_device': [None]})
+        for permission in ('dcim.change_device', 'dcim.add_module', 'dcim.view_moduletypeprofile', 'ipam.add_ipaddress'):
+            self.assertTrue(self.backend.has_perm(user, permission))
+        user.is_superuser = True
+        self.assertEqual(self.backend.get_object_permissions(user), {})
 
     def test_human_self_service_is_preserved(self):
         user = self.user('human')

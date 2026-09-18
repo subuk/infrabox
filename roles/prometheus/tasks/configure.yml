@@ -21,6 +21,7 @@
 - name: Select complete monitoring generation
   ansible.builtin.set_fact:
     prometheus_generation: '{{ (prometheus_catalog.content | b64decode | from_json).generation }}'
+    prometheus_node_exporter_address: '{{ (prometheus_catalog.content | b64decode | from_json).settings.node_exporter_address }}'
 - name: Create generation directory
   ansible.builtin.file:
     path: '{{ infrabox_config_root }}/prometheus/generations/{{ prometheus_generation }}'

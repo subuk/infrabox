@@ -78,14 +78,15 @@ disabled. Follow [identity and access](docs/identity.md) for details.
 
 In Grafana, open **InfraBox / InfraBox Health** after fresh observations arrive.
 For chat, follow [OpenClaw setup](docs/openclaw.md) and configure a
-[model provider](docs/openclaw-providers.md), including a local LAN Ollama server. Enable [Platform](docs/platform.md)
+[model provider](docs/openclaw-providers.md), including a local LAN Ollama server with separate selectable endpoints. Enable [Platform](docs/platform.md)
 only after preparing its source and managed-host credentials. Platform remembers
 SSH host keys on first connection and rejects changed keys; adding a managed
 host requires no Ansible run to update SSH trust.
 
 In OpenClaw, **Inspect / Query** reads NetBox, **Network Scan** probes an approved
-subnet, and **Ansible Discovery** collects facts from known hosts. Inventory writes
-require a confirmed proposal. See [Gateway setup](docs/openclaw.md) for workflows
+subnet, and **Ansible Discovery** collects facts from known hosts. Discovery automatically applies its [owned fields](docs/discovery-reconciliation.md)
+to NetBox, including VM disks and identifiable physical disk modules; manual
+inventory changes require a confirmed proposal. See [Gateway setup](docs/openclaw.md) for workflows
 and the `openclaw_skills` tag for updating only the managed skill files.
 
 ## Security and recovery

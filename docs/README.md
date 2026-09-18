@@ -68,3 +68,5 @@ scope decisions; follow the current guides above for operations.
 The [identity guide](identity.md) links the KRG-17 design and explains its later
 first-login/MFA amendment. Historical examples and target addresses in plans and
 status records must not be copied into a new deployment without operator choices.
+
+- [Deterministic discovery reconciliation](discovery-reconciliation.md): KRG-21 ownership, DMI modules, artifacts and monitoring.
