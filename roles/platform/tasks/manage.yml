@@ -19,6 +19,7 @@
       admin_user: '{{ gitea_identity_admin_username | default("svc-identity-admin") }}'
       admin_password: '{{ lldap_admin_password }}'
       service_password: '{{ identity_platform_password }}'
+      schema_password: '{{ identity_netbox_source_password }}'
       organization: '{{ platform_organization }}'
       repository: '{{ platform_repository }}'
       provisioner: '{{ platform_provisioner }}'

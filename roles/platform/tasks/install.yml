@@ -49,7 +49,7 @@
     src: '{{ item }}'
     dest: '/usr/local/libexec/infrabox-platform/{{ item }}'
     mode: '0700'
-  loop: [manage.py, verify-runtime.py]
+  loop: [manage.py, verify-runtime.py, schema-profile.py]
   register: platform_helpers
 - name: Copy exact source bundle to the appliance
   ansible.builtin.copy:

@@ -11,6 +11,9 @@ repository. Target-specific acceptance and remaining checks are recorded in
 [implementation status](../IMPLEMENTATION_STATUS.md). Discovery does not add a
 recurring monitor. The generic CI runner keeps its independent identity and restrictions.
 
+[Managed server configuration](platform-configuration.md) adds the separate
+configure check/apply workflow and Config Context Profile.
+
 ## Configure and deploy
 
 Use the authorized inventory and its existing protected controller inputs.

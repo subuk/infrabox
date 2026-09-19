@@ -221,3 +221,25 @@ live targets for this implementation are the existing development appliance and
 managed hosts `testbox.net.krglv.com` and `slava.net.krglv.com`. Do not recreate the
 appliance. Respect their actual NetBox identities; a guest recorded as Device is
 not permission to migrate it automatically.
+
+## Config Context driven configuration (KRG-10)
+
+Read `docs/platform-configuration.md` and the Platform repository's self-contained
+`AGENTS.md` before changing configuration roles. The separate Platform `site.yml`
+runs only through its single `configure` Gitea workflow. PRs force check/diff and
+conservative impact scope; manual apply requires explicit `check=false` on the
+approved revision. Do not bypass it with direct Ansible against managed hosts.
+
+Core owns PR permissions, runtime compatibility, the dedicated Gitea Code Read identity
+and NetBox Config Context Profile. NetBox pulls schemas directly from Gitea over
+verified HTTPS; do not mount a Platform repository into NetBox. Preserve discovery's independent exact-SHA
+runtime contract and metrics. NetBox local context is also checked by effective
+pipeline preflight. A Config Context role assignment needs a concrete confirmed
+proposal; discovery permission alone does not authorize configuration apply.
+
+For the current KRG-10 implementation the user authorized the existing development
+appliance and only `testbox.net.krglv.com` (Device 1) for role application. The user
+confirmed packages=curl, the existing AlmaLinux NTP pool/DHCP sources/makestep, and
+existing SSH INFO/0/3 log/client-alive settings. Preserve its SSH account/key/port,
+other context data and Device identity. Do not treat all managed hosts as authorized
+for live configuration merely because a global impact calculation selects them.

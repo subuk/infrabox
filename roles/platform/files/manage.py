@@ -3,6 +3,7 @@
 import base64
 import fcntl
 import http.client
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -139,6 +140,66 @@ class Manager:
         self.changed |= result.get('changed', False)
         return result
 
+    def schema_reader(self):
+        """Native central identity: this repository's Code Read, no Actions authority."""
+        teams = self.api('/orgs/' + self.c['organization'] + '/teams?limit=50')
+        team = next((t for t in teams if t['name'] == 'NetBoxSchema'), None)
+        settings = {'name': 'NetBoxSchema', 'permission': 'read',
+                    'units_map': {'repo.code': 'read'}, 'can_create_org_repo': False,
+                    'includes_all_repositories': False}
+        if team is None:
+            team = self.api('/orgs/' + self.c['organization'] + '/teams', settings, 'POST')
+            self.changed = True
+        elif any(team.get(k) != v for k, v in {**settings, 'permission': 'none'}.items()):
+            self.api('/teams/' + str(team['id']), settings, 'PATCH'); self.changed = True
+        team_path = '/teams/' + str(team['id'])
+        repositories = self.api(team_path + '/repos?limit=50')
+        expected_repo = self.c['organization'] + '/' + self.c['repository']
+        if any(r['full_name'] != expected_repo for r in repositories):
+            raise ManagementError('NetBox Git reader team has unrelated repositories')
+        if not repositories:
+            self.api(team_path + '/repos/' + expected_repo, method='PUT'); self.changed = True
+        auth = 'Basic ' + base64.b64encode(('svc-netbox-source:' + self.c['schema_password']).encode()).decode()
+        user = self.api('/user', auth=auth)
+        if user.get('login') != 'svc-netbox-source' or user.get('is_admin'):
+            raise ManagementError('NetBox Git reader has unexpected central identity')
+        flags = command(['podman', 'exec', '--user', 'postgres', 'postgresql',
+            'psql', '-XAt', '-U', 'postgres', '-d', 'gitea', '-c',
+            'SELECT max_repo_creation,allow_create_organization,allow_git_hook,allow_import_local '
+            'FROM "user" WHERE id=' + str(int(user['id']))])
+        if flags != '0|f|f|f':
+            self.api('/admin/users/svc-netbox-source', {'login_name': 'svc-netbox-source',
+                'max_repo_creation': 0, 'allow_create_organization': False,
+                'allow_git_hook': False, 'allow_import_local': False}, 'PATCH'); self.changed = True
+        memberships = self.api('/user/teams?limit=50', auth=auth)
+        if {t['id'] for t in memberships} != {team['id']}:
+            raise ManagementError('NetBox Git reader central team assignment differs')
+        permissions = self.api(self.repo, auth=auth).get('permissions', {})
+        if not permissions.get('pull') or permissions.get('push') or permissions.get('admin'):
+            raise ManagementError('NetBox Git reader is not read-only')
+        repositories = self.api('/user/repos?limit=50', auth=auth)
+        if {r['full_name'] for r in repositories} != {expected_repo}:
+            raise ManagementError('NetBox Git reader has unrelated access')
+
+    def schema_profile(self):
+        source = Path(self.c['source_dir'])
+        schema = source / 'schemas/config-context.schema.json'
+        paths = command(['git', '-C', str(source), 'ls-tree', '-r', '--name-only', self.c['revision']]).splitlines()
+        self.schema_reader()
+        config = {'git_url': self.git_base + '/' + self.c['organization'] + '/' + self.c['repository'] + '.git',
+                  'branch': self.c['branch'], 'username': 'svc-netbox-source', 'password': self.c['schema_password'],
+                  'schema_sha256': hashlib.sha256(schema.read_bytes()).hexdigest(),
+                  'ignore_rules': '\n'.join(p for p in paths if p != 'schemas/config-context.schema.json')}
+        code = Path('/usr/local/libexec/infrabox-platform/schema-profile.py').read_text()
+        output = command(['podman', 'exec', '-i', '--workdir', '/opt/netbox/netbox', 'netbox',
+            '/opt/netbox/venv/bin/python', '-c',
+            'import os,json,sys,django,contextlib,io\n'
+            'os.environ.setdefault("DJANGO_SETTINGS_MODULE","netbox.settings")\n'
+            'with contextlib.redirect_stdout(io.StringIO()): django.setup()\n'
+            'data=json.load(sys.stdin);exec(data["code"],{"config":data["config"]})'],
+            input=json.dumps({'code':code,'config':config}))
+        self.changed |= json.loads(output)['changed']
+
     def identities(self):
         mount = self.c['mount']
         mounts = self.bao('sys/mounts')['data']
@@ -220,7 +281,7 @@ class Manager:
         if repo is None:
             repo = self.api(org + '/repos', {'name': c['repository'], 'private': True,
                 'auto_init': False, 'default_branch': c['branch']}, 'POST'); self.changed = True
-        desired = {'private': True, 'has_actions': True, 'has_pull_requests': False,
+        desired = {'private': True, 'has_actions': True, 'has_pull_requests': True,
                    'has_issues': False, 'has_wiki': False, 'default_branch': c['branch']}
         if any(repo.get(k) != v for k, v in desired.items()):
             self.api(self.repo, desired, 'PATCH'); self.changed = True
@@ -233,7 +294,8 @@ class Manager:
                 ('Operators', 'read', 'write', False)):
             team = next((t for t in teams if t['name'] == name), None)
             settings = {'name': name, 'permission': 'read',
-                        'units_map': {'repo.code': code, 'repo.actions': actions},
+                        'units_map': {'repo.code': code, 'repo.actions': actions,
+                                      'repo.pulls': 'write' if name == 'Developers' else 'read'},
                         'can_create_org_repo': False, 'includes_all_repositories': all_repositories}
             if team is None:
                 team = self.api(org + '/teams', settings, 'POST'); self.changed = True
@@ -372,6 +434,7 @@ class Manager:
             self.repository()
             self.synchronize(token)
             self.variables()
+            self.schema_profile()
         elif action == 'register':
             self.runner()
         elif action == 'finalize':

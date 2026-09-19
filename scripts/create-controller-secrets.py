@@ -23,6 +23,7 @@ identity_keys = [
     'lldap_database_password', 'lldap_admin_password', 'lldap_reader_password',
     'lldap_jwt_secret', 'lldap_key_seed',
     'identity_openclaw_password', 'identity_platform_password', 'identity_monitor_password',
+    'identity_netbox_source_password',
 ]
 try:
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)

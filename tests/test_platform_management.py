@@ -92,16 +92,16 @@ class RepositoryTests(unittest.TestCase):
                         return {'id': 3}
                     if path == '/orgs/fixture/teams?limit=50':
                         return [{'id': 3, 'name': 'Operators', 'permission': 'none',
-                                 'units_map': {'repo.code': code_permission, 'repo.actions': 'write'},
+                                 'units_map': {'repo.code': code_permission, 'repo.actions': 'write', 'repo.pulls': 'read'},
                                  'can_create_org_repo': False, 'includes_all_repositories': False},
                                 *[{'id': i, 'name': name, 'permission': 'none',
-                                   'units_map': {'repo.code': code, 'repo.actions': 'read'},
+                                   'units_map': {'repo.code': code, 'repo.actions': 'read', 'repo.pulls': 'write' if name == 'Developers' else 'read'},
                                    'can_create_org_repo': False, 'includes_all_repositories': True}
                                   for i, name, code in [(4, 'Developers', 'write'), (5, 'Readers', 'read')]]]
                     if '/members' in path:
                         self.fail('Team membership must remain owned by native central synchronization')
                     if path == m.repo:
-                        return {'private': True, 'has_actions': True, 'has_pull_requests': False,
+                        return {'private': True, 'has_actions': True, 'has_pull_requests': True,
                                 'has_issues': False, 'has_wiki': False, 'default_branch': 'master'}
                     if path.endswith('/branch_protections/master'):
                         return {'rule_name': 'master', 'enable_push': True, 'enable_push_whitelist': True,
@@ -116,5 +116,27 @@ class RepositoryTests(unittest.TestCase):
                 else:
                     self.assertEqual(len(writes), 1)
                     self.assertEqual(writes[0][0], '/teams/3')
-                    self.assertEqual(writes[0][1]['units_map'], {'repo.code': 'read', 'repo.actions': 'write'})
+                    self.assertEqual(writes[0][1]['units_map'], {'repo.code': 'read', 'repo.actions': 'write', 'repo.pulls': 'read'})
                     self.assertEqual(writes[0][2], 'PATCH')
+
+class SchemaReaderTests(unittest.TestCase):
+    def test_reader_is_stable_and_excess_authority_fails(self):
+        for push in (False, True):
+            with self.subTest(push=push):
+                m=module.Manager.__new__(module.Manager)
+                m.c={'organization':'fixture','repository':'automation','schema_password':'fixture-only'}
+                m.repo='/repos/fixture/automation';m.changed=False
+                team={'id':7,'name':'NetBoxSchema','permission':'none','units_map':{'repo.code':'read'},
+                      'can_create_org_repo':False,'includes_all_repositories':False}
+                def api(path, data=None, method='GET', **kwargs):
+                    self.assertEqual(method,'GET','Healthy reader must not be rewritten')
+                    if path.endswith('/teams?limit=50'):return [team]
+                    if path=='/user':return {'id':8,'login':'svc-netbox-source','is_admin':False}
+                    if path==m.repo:return {'permissions':{'pull':True,'push':push,'admin':False}}
+                    if '/repos' in path:return [{'full_name':'fixture/automation'}]
+                    self.fail(path)
+                m.api=api
+                with patch.object(module,'command',return_value='0|f|f|f'):
+                    if push:
+                        with self.assertRaisesRegex(module.ManagementError,'read-only'):m.schema_reader()
+                    else:m.schema_reader();self.assertFalse(m.changed)

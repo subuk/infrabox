@@ -3,7 +3,7 @@ identity_directory_base_dn: dc=infrabox,dc=internal
 identity_directory_admin_username: svc-identity-admin
 identity_directory_gitea_groups: >-
   {{ (identity_gitea_organizations | default([platform_organization | default('infrabox-platform')]))
-     | product(['admin', 'developer', 'reader', 'operator', 'discovery'])
+     | product(['admin', 'developer', 'reader', 'operator', 'discovery', 'schema'])
      | map('join', ':') | map('regex_replace', '^', 'infrabox:gitea:') | list }}
 identity_directory_role_groups: >-
   {{ ['infrabox:gitea:admin', 'infrabox:netbox:admin', 'infrabox:netbox:editor',
@@ -37,3 +37,8 @@ identity_directory_users:
     email: 'svc-monitor@{{ infrabox_domain }}'
     password: '{{ identity_monitor_password }}'
     groups: ['infrabox:openbao:monitor']
+  - username: svc-netbox-source
+    type: service
+    email: 'svc-netbox-source@{{ infrabox_domain }}'
+    password: '{{ identity_netbox_source_password }}'
+    groups: ['infrabox:gitea:{{ platform_organization | default("infrabox-platform") }}:schema']

@@ -23,6 +23,7 @@
       managed_tag: '{{ platform_managed_tag }}'
       netbox_url: '{{ platform_netbox_url }}'
       trust: '{{ platform_trust_sources.results | map(attribute="stat.checksum") | list }}'
+      schema_profile: '{{ lookup("ansible.builtin.file", role_path ~ "/files/schema-profile.py") }}'
       management: '{{ lookup("ansible.builtin.file", role_path ~ "/files/manage.py") }}'
       identity: '{{ lookup("ansible.builtin.file", playbook_dir ~ "/roles/netbox/files/service-identity.py") }}'
       authorization: '{{ lookup("ansible.builtin.file", playbook_dir ~ "/roles/netbox/templates/infrabox_auth.py.j2") }}'
@@ -91,6 +92,13 @@
     dest: '{{ platform_directory }}/ssh-trust/known_hosts'
     force: false
     mode: '0600'
+- name: Provision the independent NetBox Git reader in the central directory
+  ansible.builtin.include_role:
+    name: identity_directory
+- name: Configure native Gitea mapping for the NetBox Git reader
+  ansible.builtin.include_role:
+    name: gitea
+    tasks_from: service
 - name: Apply service identity permissions through the NetBox role
   ansible.builtin.include_role:
     name: netbox
@@ -98,6 +106,14 @@
   ansible.builtin.include_tasks: manage.yml
   vars:
     platform_action: configure
+- name: Remove the superseded local schema mirror after HTTPS synchronization
+  ansible.builtin.file:
+    path: '{{ infrabox_storage_root }}/platform-schema.git'
+    state: absent
+- name: Remove the superseded local schema export helper
+  ansible.builtin.file:
+    path: /usr/local/libexec/infrabox-platform/schema-source.py
+    state: absent
 - name: Record management changes for runtime application
   ansible.builtin.set_fact:
     platform_management_changed: '{{ platform_management_result.changed }}'

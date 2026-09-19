@@ -117,7 +117,8 @@ class Manager:
             for name, code in [('Developers', 'write'), ('Readers', 'read')]:
                 team = next((t for t in teams if t['name'] == name), None)
                 desired = {'name': name, 'permission': 'read',
-                           'units_map': {'repo.code': code, 'repo.actions': 'read'},
+                           'units_map': {'repo.code': code, 'repo.actions': 'read',
+                                         'repo.pulls': 'write' if name == 'Developers' else 'read'},
                            'can_create_org_repo': False, 'includes_all_repositories': True}
                 if team is None:
                     api(org + '/teams', desired, 'POST')
@@ -156,7 +157,7 @@ class Manager:
             raise RuntimeError('Invalid managed Gitea organization catalog')
         self.catalog(organizations, basic)
         roles = {'admin': 'Owners', 'developer': 'Developers', 'reader': 'Readers',
-                 'operator': 'Operators', 'discovery': 'OpenClawDiscovery'}
+                 'operator': 'Operators', 'discovery': 'OpenClawDiscovery', 'schema': 'NetBoxSchema'}
         mapping = {'infrabox:gitea:' + org + ':' + role: {org: [team]}
                    for org in organizations for role, team in roles.items()}
         self.ensure_source('infrabox-services', {

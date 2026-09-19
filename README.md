@@ -20,6 +20,7 @@ model credentials remain operator-supplied.
 | Service and integration health | Prometheus and the Grafana **InfraBox Health** dashboard |
 | Conversational inventory work | OpenClaw with confirmed NetBox writes, subnet scanning and web search |
 | Optional managed-host facts discovery | Dedicated Platform runner and fixed Gitea workflow |
+| Managed server configuration | NetBox desired state, Platform roles and configure check/apply workflow |
 
 nginx is the public HTTPS entry point. Application containers use internal
 PostgreSQL/Redis services; SELinux and firewall isolation remain enforced.
@@ -79,7 +80,9 @@ disabled. Follow [identity and access](docs/identity.md) for details.
 In Grafana, open **InfraBox / InfraBox Health** after fresh observations arrive.
 For chat, follow [OpenClaw setup](docs/openclaw.md) and configure a
 [model provider](docs/openclaw-providers.md), including a local LAN Ollama server with separate selectable endpoints. Enable [Platform](docs/platform.md)
-only after preparing its source and managed-host credentials. Platform remembers
+only after preparing its source and managed-host credentials.
+[Server configuration](docs/platform-configuration.md) uses the same trusted
+runner with separate PR check and explicit apply modes. Platform remembers
 SSH host keys on first connection and rejects changed keys; adding a managed
 host requires no Ansible run to update SSH trust.
 

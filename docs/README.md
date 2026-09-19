@@ -20,6 +20,7 @@ operator procedures, not authorization to run them during documentation work.
 | --- | --- |
 | [OpenClaw Gateway](openclaw.md) | Pair a client, understand NetBox onboarding, scan consent, tools and token recovery |
 | [OpenClaw model providers](openclaw-providers.md) | Store provider keys in OpenBao, configure SecretRefs and select a session model |
+| [Managed server configuration](platform-configuration.md) | Configure roles from NetBox desired state through PR checks and explicit apply |
 | [Platform discovery](platform.md) | Prepare the trusted runner, source revision, managed-host credentials and Config Context |
 | [OpenClaw discovery and enrichment](openclaw-discovery.md) | Launch selected-host discovery, resume requests and review confirmed NetBox proposals |
 

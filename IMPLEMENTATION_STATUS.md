@@ -1639,3 +1639,72 @@ Evidence under `artifacts/infrabox1/`: `krg21-disks-{unit,gateway-unit,core-unit
 `krg21-disks-syntax.log`, `krg21-disks-deploy.log`, `krg21-disks-gateway-deploy.log`,
 `krg21-disks-live.log`, `krg21-disks-{baseline,after,replay}.json`, and
 `krg9/discovery-krg21-disks-20260918.json`.
+
+## KRG-10 — Config Context driven configuration (2026-09-19)
+
+Implemented separate PR/manual configure execution in Platform revision
+`162ae26c389349aac0724a04783a837cb639cac4`: ordered packages/chrony/sshd roles,
+partial schema, effective-input validation, global preflight, conservative role
+impact and forced PR check/diff. Native Ansible inventory trust tags survive the
+private snapshot; no raw inventory or credentials are published. Discovery keeps
+its independent exact-SHA contract. Platform contains its own operator/agent docs.
+
+Core provisions the schema profile using NetBox's native Git Data Source, pulling
+`schemas/config-context.schema.json` directly from Gitea with a dedicated central
+Code Read identity (`svc-netbox-source`). Neither NetBox container has a Platform
+repository mount. The earlier development mirror and mount implementation was
+removed following operator direction; verified source status was `completed`,
+profile schema matched, and both containers had no repository mount.
+
+Used the explicitly authorized existing development appliance and only managed
+Device 1, `testbox.net.krglv.com`. Applied the operator-confirmed packages/chrony/sshd
+local Config Context, preserving other context and connection fields. No Device/VM
+migration or changes to other managed hosts were made. Live workflow evidence:
+
+| Run | Execution | Result on testbox |
+| --- | --- | --- |
+| 988 / PR 3 | Exact PR head `7f299b532feca317373f163f9127c5ad884509e5`, role-only scope, forced check/diff | Success, 5 predicted changes |
+| 989 | Explicit manual apply, approved deployed revision | Success, 5 changes |
+| 991 | Repeated manual apply | Success, changed=0 |
+| 992 | Final manual check/diff | Success, changed=0 |
+
+All runs selected only testbox and had zero failures/unreachable hosts. The temporary
+acceptance PR was closed without merging. The changed chrony file preserves the
+approved active pool/DHCP/makestep settings. SSH drop-in manages only INFO/0/3;
+read-only verification confirmed SSH access, `sshd -t`, active/enabled sshd and
+chronyd, installed packages, synchronized NTP (`Leap status: Normal`), unchanged
+authentication settings, and SELinux Enforcing.
+
+Local validation: 30 Platform tests, 96 Core tests and explicit development-inventory
+site syntax passed. Tests include native inventory trust preservation, PR policy,
+impact/missing targets, schema, disabled roles and the cross-host preflight barrier.
+Global live scope and destructive/reboot/expiry acceptance were not run. Successful
+component deployment: `ok=121 changed=13 failed=0`.
+
+Two earlier PR attempts (983, 985) failed before role execution. They exposed native
+inventory diagnostics on stderr and tagged strings in Ansible 2.19's inventory JSON;
+both were fixed, regression-tested and redeployed before successful acceptance.
+An initially stale controller public CA export also blocked an API request before
+PR creation; it was preserved and refreshed through verified appliance SSH. No
+remote CA identity or initialization state changed.
+
+Evidence under `artifacts/infrabox1/`: `krg10-{platform,core}-final-tests.log`,
+`krg10-core-final-syntax.log`, `krg10-native-inventory-deploy.log`,
+`krg10-gitea-source.json`, `krg10-testbox-context.json`,
+`krg10-snapshot-smoke.json`, `krg10-host-final.log`, and
+`krg10-{role-scope-native,apply,repeat,final-check}-20260919.json` with corresponding
+sanitized `.ansible.log` files. Earlier failed-run evidence is retained separately.
+
+Discovery regression run 993 passed against the same exact deployed revision and
+only testbox (Device 1): collected=1, reconciled=1, changed=0, failed=0,
+unreachable=0; one host had warnings (guest recorded as Device and unknown VRF
+for observed IPs). Its discovery provenance was refreshed, with no inventory field
+changes or migration. Native dispatch, exact-SHA
+checkout and artifact upload/download passed. Evidence:
+`krg10-discovery-regression.log`, `platform-discovery-993.json` and
+`krg10-discovery-summary.json`.
+
+Final Core provisioning repeat passed with `ok=116 changed=0 failed=0` (see
+`krg10-provisioning-repeat.log`), preserving the approved revision and integration
+credentials. Final mount destinations for both NetBox containers are recorded in
+`krg10-netbox-mounts.log`; no Platform repository mount remains.

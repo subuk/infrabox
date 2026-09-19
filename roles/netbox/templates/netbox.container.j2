@@ -13,6 +13,11 @@ Network=infrabox.network
 PodmanArgs=--hosts-file=none
 NetworkAlias=netbox.{{ infrabox_internal_domain }}
 PublishPort=127.0.0.1:8080:8080
+{% if platform_enabled | default(false) | bool %}
+# Native Git Data Source trusts the appliance CA and the image's public CA directory.
+Environment=SSL_CERT_FILE=/run/infrabox-ca/root-ca.crt
+Environment=SSL_CERT_DIR=/etc/ssl/certs
+{% endif %}
 EnvironmentFile={{ infrabox_config_root }}/netbox/netbox.env
 Volume={{ infrabox_config_root }}/netbox/configuration.py:/etc/netbox/config/configuration.py:ro,z
 Volume={{ infrabox_config_root }}/netbox/ldap_config.py:/etc/netbox/config/ldap/ldap_config.py:ro,z
